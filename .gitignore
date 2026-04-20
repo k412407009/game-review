@@ -1,0 +1,42 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# === 打包产物 (Phase 2 CLI 打包会用到) ===
+build/
+dist/
+*.egg-info/
+*.egg
+
+# === IDE / 编辑器 ===
+.cursor/projects/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === OS 临时文件 ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === 密钥 / 凭证 ===
+.env
+.env.local
+**/api_config.json
+**/credentials*.json
+
+# === 评审运行时产物 (如果 skill 被直接放在项目里跑) ===
+# 注意: 评审报告本身 (docx/xlsx/md) 应由调用方 (e.g. 丁亮的个人助手) 自己的 repo 保管, 这里只放 skill 代码
+*.docx.tmp
+*.xlsx.tmp
+~$*.docx
+~$*.xlsx
