@@ -90,12 +90,27 @@ description: >
 
 ## 快速用法
 
+**推荐先装 CLI** (Phase 2, 2026-04-21 起可用):
+
+```bash
+# 在 game-review repo 根目录
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+# 检查
+game-review --help
+game-review version
+```
+
 ### 内部 PPT 评审 (默认模式)
 
 ```bash
 # 1. 用 agent 帮你填写 review.json (放到 <project>/review/<project>_review.json)
 # 2. 生成三件套
-python skills/game-review/scripts/review/generate_review.py <project_dir>
+game-review review <project_dir>
+# 旧接口 (仍然支持, 不需装 CLI):
+#   python skills/game-review/scripts/review/generate_review.py <project_dir>
+
 # 产出:
 #   <project>/review/<project>_review.docx
 #   <project>/review/<project>_review.xlsx
@@ -108,10 +123,13 @@ python skills/game-review/scripts/review/generate_review.py <project_dir>
 # 1. 用 ppt-master 的 fetch_game_assets 收集商店/视频素材
 # 2. 用 agent 填 review.json (含 video_evidence / visual_catalog)
 # 3. 生成 4 件套
-python skills/game-review/scripts/review/generate_review.py <project_dir> \
-    --mode external-game --with-visuals
+game-review review <project_dir> --mode external-game --with-visuals
 
-# 产出: 在上面的 3 件套基础上, xlsx 多一个 "视觉索引" sheet
+# 旧接口:
+#   python skills/game-review/scripts/review/generate_review.py <project_dir> \
+#       --mode external-game --with-visuals
+
+# 产出: 在 3 件套基础上, xlsx 多一个 "视觉索引" sheet
 #   商店截图区: 按 visual_catalog.store 或 auto-scan raw_assets/*/store/
 #   视频关键帧区: 按 video_evidence.key_scenes_human_read 的 scene id 反查
 ```
@@ -120,9 +138,19 @@ python skills/game-review/scripts/review/generate_review.py <project_dir> \
 
 ```bash
 # 当有多个 project 各自跑完 review 后
-python skills/game-review/scripts/review/build_summary.py <batch_dir>
+game-review summary <batch_dir>
+# 旧接口:
+#   python skills/game-review/scripts/review/build_summary.py <batch_dir>
 # batch_dir 下应该有若干个 <project>/review/*_review.json
 ```
+
+### 单独追加视觉索引 Sheet (高级)
+
+```bash
+game-review visuals <project_dir> [--xlsx path/to/report.xlsx]
+```
+
+常见用法: 已经跑过一次 review 但没开 `--with-visuals`, 想在不重跑业务的情况下补视觉索引。
 
 ## 依赖
 
@@ -158,10 +186,11 @@ pip install python-docx openpyxl Pillow
 - **2026-04-20 T3**: 用户要求移除 D8 (团队/排期/预算) 和 D9 (PPT 表达力), 改为 7 维度
 - **2026-04-21**: 首次用于外部游戏 (Last Beacon: Survival) MVP A, 证明框架通用
 - **2026-04-21**: 脱 ppt-master 独立化成 `game-review` skill (本 skill), 加 `--mode` 和 `--with-visuals`
+- **2026-04-21**: Phase 2 CLI 打包完成 — `pyproject.toml` + entry point `game-review` + subcommands `review / summary / visuals / version`, `pip install -e .` 可装, 用 Last Beacon 做过一次 md/docx 字节级回归 (通过)
 
 ## 已知 Gap / TODO
 
 1. `--mode` 目前只是元信息标签, 未来应该驱动 **不同权重模板** (例如 external-game 加重 D5 权重)
 2. `visual_catalog.store` 的 schema 建议未来内化到 `review-board.md §VI`
 3. `add_visual_sheet` 目前只管 store + video, 未来可以加 **投放素材** (ad-creatives) 分区
-4. 没有 CLI 安装 (要 `python <path>` 运行), 后续可以加 `pyproject.toml` 做 `pip install` + `game-review` entry point (= 路线图 Phase 2)
+4. ~~没有 CLI 安装~~ → **已完成 (Phase 2, 2026-04-21)**. 下一阶段是 Phase 3 Web MVP (见 `docs/roadmap.md`)

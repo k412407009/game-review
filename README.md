@@ -12,17 +12,42 @@
 
 ## 快速开始
 
-```bash
-# 1. 装依赖 (python 3.10+)
-pip install python-docx openpyxl Pillow
+### A. CLI 方式 (推荐, 2026-04-21 起可用)
 
-# 2. 准备一份 review.json (schema 见 skills/game-review/references/review-board.md §VI)
+```bash
+# 1. clone & 进入目录
+git clone https://github.com/k412407009/game-review.git
+cd game-review
+
+# 2. 建 venv (Python 3.10+) 并 editable 安装
+python3 -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
+pip install -e .
+
+# 3. 准备 review.json (schema 见 skills/game-review/references/review-board.md §VI)
 #    放到 <your_project>/review/<your_project>_review.json
 
-# 3. 内部 PPT 评审 (默认)
-python skills/game-review/scripts/review/generate_review.py <your_project>
+# 4. 内部 PPT 评审 (默认)
+game-review review <your_project>
 
-# 3'. 外部游戏评审 (+ 视觉索引 Sheet)
+# 4'. 外部游戏评审 (+ 视觉索引 Sheet)
+game-review review <your_project> --mode external-game --with-visuals
+
+# 其他子命令
+game-review summary <projects_root>           # 跨项目汇总
+game-review visuals <your_project>            # 只追加视觉索引到已有 xlsx
+game-review version                           # 版本
+game-review --help                            # 完整用法
+```
+
+### B. 直接跑脚本 (不装包也行, 适合临时/cursor-skill 场景)
+
+```bash
+# 只装依赖
+pip install python-docx openpyxl Pillow
+
+# 运行脚本
+python skills/game-review/scripts/review/generate_review.py <your_project>
 python skills/game-review/scripts/review/generate_review.py <your_project> \
     --mode external-game --with-visuals
 ```
@@ -44,6 +69,12 @@ python skills/game-review/scripts/review/generate_review.py <your_project> \
 ```
 game-review/
   README.md                         你正在看的这个
+  pyproject.toml                    CLI 打包配置 (Phase 2 — 2026-04-21)
+  game_review/                      Python package (CLI 适配层)
+    __init__.py
+    cli.py                          game-review CLI 入口 (subcommands: review/summary/visuals/version)
+  tests/
+    test_cli_smoke.py               CLI smoke tests (--help / 参数校验 / 版本)
   docs/
     roadmap.md                      从 skill → CLI → Web SaaS 的渐进路径
   skills/
@@ -57,6 +88,9 @@ game-review/
           build_summary.py          跨项目汇总
           add_visual_sheet.py       给 xlsx 追加视觉索引 Sheet
 ```
+
+`game_review/cli.py` 是薄适配层, 把 CLI flag 透传给 `skills/game-review/scripts/review/*.py` 的脚本入口。
+保持 skill 脚本作为"单一真实来源", CLI / Web / Agent 都只读它, 不复制。
 
 ## 为什么要 review.json 而不是 PPT
 
