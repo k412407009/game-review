@@ -1,0 +1,12 @@
+# 运行时数据 (job 状态 + 产物)
+data/
+
+# build
+build/
+dist/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/

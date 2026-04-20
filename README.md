@@ -52,7 +52,25 @@ python skills/game-review/scripts/review/generate_review.py <your_project> \
     --mode external-game --with-visuals
 ```
 
-产出:
+### C. Web UI 方式 (Phase 3 MVP, 2026-04-21 起可用)
+
+单用户本地 Web 界面, 填表单 → 自动跑 pipeline → 下载产物 zip。
+
+```bash
+# 一键装 + 起 (需先 clone 本仓库)
+./scripts/dev.sh setup       # 装 .venv + node_modules
+./scripts/dev.sh api         # 终端 1: FastAPI → http://localhost:8787
+./scripts/dev.sh web         # 终端 2: Next.js → http://localhost:3000
+```
+
+然后浏览器打开 http://localhost:3000, 填游戏名/商店 URL/视频 URL, 点"开始评审",
+Pipeline 自动跑: 解压素材 → AI 评审 (Phase 3 是 stub, 需接 LLM) → CLI 生成报告 → 打包下载.
+
+详见 [`apps/api/README.md`](apps/api/README.md) 和 [`apps/web/README.md`](apps/web/README.md).
+
+---
+
+产出 (三种方式一致):
 - `<project>/review/<project>_review.docx` — 完整评审报告
 - `<project>/review/<project>_review.xlsx` — Issues / Scores / (视觉索引) / Action_Items
 - `<project>/review/<project>_subjective_responses.md` — 主观问题最优解
@@ -70,11 +88,26 @@ python skills/game-review/scripts/review/generate_review.py <your_project> \
 game-review/
   README.md                         你正在看的这个
   pyproject.toml                    CLI 打包配置 (Phase 2 — 2026-04-21)
+  .env.example                      环境变量模板 (API key / 数据根目录 etc.)
+  scripts/
+    dev.sh                          本地一键启动 (setup / api / web / stop / status)
   game_review/                      Python package (CLI 适配层)
     __init__.py
     cli.py                          game-review CLI 入口 (subcommands: review/summary/visuals/version)
   tests/
     test_cli_smoke.py               CLI smoke tests (--help / 参数校验 / 版本)
+  apps/                             Phase 3 Web MVP (2026-04-21)
+    api/                            FastAPI 后端 (:8787) · pipeline orchestration
+      api/main.py                   FastAPI app (jobs / download / artifact)
+      api/pipeline.py               4-stage pipeline (fetch / score / generate / package)
+      api/ai_stub.py                AI 评审占位 (⚠️ 待接真实 LLM)
+      api/job_store.py              内存 + 文件持久化 job store
+      api/schemas.py                Pydantic 合约
+    web/                            Next.js 15 + Tailwind 3 前端 (:3000)
+      app/page.tsx                  提交表单
+      app/jobs/page.tsx             历史记录
+      app/jobs/[id]/page.tsx        进度页 + 下载
+      lib/api.ts                    API 客户端
   docs/
     roadmap.md                      从 skill → CLI → Web SaaS 的渐进路径
   skills/
