@@ -7,17 +7,24 @@
 #   - 同时启动 FastAPI (:8787) + Next.js (:3000) 到两个 tmux window / 后台
 #
 # 用法:
-#   ./scripts/dev.sh                 # 起所有服务
-#   ./scripts/dev.sh api             # 只起后端
-#   ./scripts/dev.sh web             # 只起前端
+#   ./scripts/dev.sh                 # 提示用法 (前台模式需开两个终端)
+#   ./scripts/dev.sh start           # 推荐: nohup 后台起两个服务, 关 Cursor 也不死
+#   ./scripts/dev.sh api             # 前台只起后端 (开发调试用)
+#   ./scripts/dev.sh web             # 前台只起前端 (开发调试用)
 #   ./scripts/dev.sh setup           # 只装依赖, 不起服务
 #   ./scripts/dev.sh stop            # 停所有服务 (kill 8787/3000 占用)
 #   ./scripts/dev.sh status          # 看两个服务状态
+#   ./scripts/dev.sh logs            # tail -f 两个服务日志
+#   ./scripts/dev.sh restart         # stop + start 一条龙
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+
+LOG_DIR="${GAME_REVIEW_LOG_DIR:-/tmp/game-review-logs}"
+API_LOG="$LOG_DIR/api.log"
+WEB_LOG="$LOG_DIR/web.log"
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -100,6 +107,48 @@ status() {
     done
 }
 
+start_background() {
+    setup_backend
+    setup_frontend
+    mkdir -p "$LOG_DIR"
+    if lsof -iTCP:8787 -sTCP:LISTEN >/dev/null 2>&1 || lsof -iTCP:3000 -sTCP:LISTEN >/dev/null 2>&1; then
+        warn "已有服务占用 8787 或 3000, 先 stop"
+        stop_services
+    fi
+
+    info "后台启动 FastAPI → http://localhost:8787  (log: $API_LOG)"
+    (cd apps/api && nohup "$REPO_ROOT/.venv/bin/uvicorn" api.main:app --host 127.0.0.1 --port 8787 --log-level info > "$API_LOG" 2>&1 < /dev/null &)
+
+    info "后台启动 Next.js → http://localhost:3000  (log: $WEB_LOG)"
+    (cd apps/web && nohup npm run dev > "$WEB_LOG" 2>&1 < /dev/null &)
+
+    sleep 4
+
+    local ok=true
+    if ! lsof -iTCP:8787 -sTCP:LISTEN >/dev/null 2>&1; then
+        warn "API 未起来, 看 tail -n 30 $API_LOG"
+        tail -n 20 "$API_LOG" >&2 || true
+        ok=false
+    fi
+    if ! lsof -iTCP:3000 -sTCP:LISTEN >/dev/null 2>&1; then
+        warn "Web 未起来 (Next.js 首次启动可能要 10-15 秒, 再等几秒后跑 status)"
+        ok=false
+    fi
+    if $ok; then
+        info "两个服务已脱离终端 background, 关 Cursor / 关终端不影响"
+        info "打开浏览器: http://localhost:3000"
+    fi
+}
+
+logs() {
+    if [[ ! -f "$API_LOG" && ! -f "$WEB_LOG" ]]; then
+        warn "还没起过 background 服务, 先 ./scripts/dev.sh start"
+        exit 1
+    fi
+    info "tail -f $API_LOG $WEB_LOG  (Ctrl-C 退出, 不会停服务)"
+    tail -F "$API_LOG" "$WEB_LOG" 2>/dev/null
+}
+
 cmd="${1:-all}"
 case "$cmd" in
     setup)
@@ -120,21 +169,32 @@ case "$cmd" in
     status)
         status
         ;;
+    start)
+        start_background
+        ;;
+    restart)
+        stop_services
+        start_background
+        ;;
+    logs)
+        logs
+        ;;
     all|"")
         setup_backend
         setup_frontend
         info ""
-        info "两个服务需要各自前台运行. 推荐开两个终端:"
-        info "  终端 1:  ./scripts/dev.sh api"
-        info "  终端 2:  ./scripts/dev.sh web"
+        info "推荐: ./scripts/dev.sh start  (后台脱离终端, 关 Cursor 不死)"
+        info "      ./scripts/dev.sh status (确认服务在跑)"
+        info "      ./scripts/dev.sh logs   (看实时日志)"
+        info "      ./scripts/dev.sh stop   (停止)"
         info ""
-        info "或者用 tmux/iterm split:"
-        info "  ./scripts/dev.sh api &      # 后台"
-        info "  ./scripts/dev.sh web        # 前台"
+        info "也可以前台跑 (调试用, 开两个终端):"
+        info "  终端 1: ./scripts/dev.sh api"
+        info "  终端 2: ./scripts/dev.sh web"
         info ""
-        info "打开: http://localhost:3000"
+        info "浏览器打开: http://localhost:3000"
         ;;
     *)
-        fail "未知命令: $cmd. 用: setup / api / web / stop / status / all"
+        fail "未知命令: $cmd. 用: setup / start / restart / stop / status / logs / api / web / all"
         ;;
 esac

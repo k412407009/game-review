@@ -148,6 +148,33 @@ def _load_from_disk(job_id: str) -> JobRecord | None:
         return None
 
 
+def bootstrap_from_disk() -> int:
+    """启动时扫一遍 JOBS_ROOT, 把已有 job 灌入内存.
+
+    返回灌入的 job 数. 在 main.py 的 lifespan startup 调用一次即可.
+    设计原因:
+        - _JOBS 内存 store 是 source of truth for list_jobs (性能考虑)
+        - 服务重启/重新部署后, 不 bootstrap 的话 list_jobs 会假装历史是空的
+        - get_job(id) 已有 fallback, 但 list_jobs() 没有 — 所以必须启动 hydrate
+    幂等: 已在内存的 job 不覆盖 (避免 race 在中途调用导致丢进度).
+    """
+    if not JOBS_ROOT.exists():
+        return 0
+    loaded = 0
+    for d in sorted(JOBS_ROOT.iterdir()):
+        if not d.is_dir():
+            continue
+        if not _JOB_ID_RE.match(d.name):
+            continue
+        if d.name in _JOBS:
+            continue
+        rec = _load_from_disk(d.name)
+        if rec is not None:
+            _JOBS[d.name] = rec
+            loaded += 1
+    return loaded
+
+
 async def delete_job(job_id: str) -> bool:
     async with _LOCK:
         rec = _JOBS.pop(job_id, None)

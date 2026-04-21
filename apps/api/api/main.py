@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from . import __version__
-from .job_store import JOBS_ROOT, create_job, delete_job, get_job, job_dir, list_jobs
+from .job_store import (
+    JOBS_ROOT,
+    bootstrap_from_disk,
+    create_job,
+    delete_job,
+    get_job,
+    job_dir,
+    list_jobs,
+)
 from .pipeline import run_pipeline
 from .schemas import JobCreate, JobMode, JobRecord, JobStage
 
@@ -29,10 +38,21 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 
+log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    n = bootstrap_from_disk()
+    log.info("bootstrap: 从磁盘恢复 %d 个历史 job (data_root=%s)", n, JOBS_ROOT)
+    yield
+
+
 app = FastAPI(
     title="game-review API",
     description="Phase 3 Web MVP: 单用户 Web UI → CLI pipeline → 下载报告",
     version=__version__,
+    lifespan=lifespan,
 )
 
 app.add_middleware(

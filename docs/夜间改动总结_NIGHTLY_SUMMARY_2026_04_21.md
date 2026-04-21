@@ -203,3 +203,36 @@ personal-assistant/  (昨天白天已处理, 今夜无改动)
 - 任何 git config (AGENTS.md 禁止)
 
 **明天你看这份文档时, 如果发现实际情况跟这里写的不一致**, 直接告诉 agent, 会立即对齐。
+
+---
+
+## 校正 · 2026-04-21 早上发现的两个错
+
+> 写完上面这份报告后, 用户起床发现 2 个跟报告不一致的地方, 在此校正:
+
+### 校正 1 · 服务并未活到早上
+
+夜里我说 "没停后台 dev server, 起床直接能用". 这是错的.
+Cursor `block_until_ms:0` 起的后台 task 是 agent 会话子进程, 跟以下任一事件绑定就会死: agent 会话结束 / macOS sleep / Cursor 关闭. 它们 **不是** `nohup`/`launchd` daemon.
+
+**修复**: `scripts/dev.sh` 加了 `start` / `restart` / `logs` 三个子命令, 改用真 `nohup ... </dev/null &` + 写日志到 `/tmp/game-review-logs/`.
+```bash
+./scripts/dev.sh start      # 真后台, ps aux 看 TTY 是 ??
+./scripts/dev.sh status
+./scripts/dev.sh logs
+```
+
+### 校正 2 · 历史列表早上是空的, 不是 "可下载"
+
+夜里我说 "两个夜间 E2E job 已在历史列表里可下载". 这是只看了夜里 (uvicorn 还在跑、内存还有数据时) curl `/jobs` 的结果. 早上服务重启后, 内存 store `_JOBS: dict` 被清空, 而 `list_jobs()` 没有从磁盘 hydrate, 用户访问 `/jobs` 就是 `[]`.
+
+**修复**:
+- `apps/api/api/job_store.py` 新增 `bootstrap_from_disk()` 函数, 扫 `data/jobs/<id>/state.json` 灌内存
+- `apps/api/api/main.py` 用 FastAPI lifespan async context manager, startup 时调一次 `bootstrap_from_disk()`
+- 现在 restart 后 `/jobs` 能返回全部 4 条历史 (3 个 done + 1 个 failed)
+
+**注意**: 这 4 条 job 是夜间 E2E 流水线的测试副产物, 不是产品"示例数据". 内容用的 `ai_stub` 占位, 评审 issues / scores 都是假的, 仅用于验证下载链路通畅. 真评审要等 LLM 接好后重跑.
+
+### 完整复盘
+
+详见新写的 lesson: [`docs/lessons/进程重启状态全丢_PROCESS_RESTART_STATE_LOSS.md`](../../docs/lessons/进程重启状态全丢_PROCESS_RESTART_STATE_LOSS.md) (在工作区根的 docs/lessons/)
