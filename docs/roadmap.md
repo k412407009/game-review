@@ -9,7 +9,8 @@
 - ✅ Phase 2: `pip install -e .` → `game-review` CLI (review/summary/visuals/version)
 - ✅ Phase 3 MVP: FastAPI + Next.js 本地 Web, 表单 → pipeline → 报告下载
 - ✅ Last Beacon: Survival 作为外部游戏评审首个案例验证通过
-- ⚠️ Phase 3 的 AI 评审环节是 **stub** (占位数据), 还没接真实 LLM — 接了之后才算真 Phase 3 完成
+- ✅ Phase 3 默认已接 Compass (`apps/api/api/ai_stub.py`), 可生成真实 review.json
+- ⚠️ 当 Compass key 缺失或上游失败时, 仍会回退到 stub 保证链路不中断
 
 ## 发展阶段
 
@@ -28,7 +29,7 @@
 - ⏳ 环境变量 / `.env` 管理 (已加到 Phase 3, 见 `.env.example`)
 - ⏳ `game-review init <project-name>` 骨架生成器 (未做, 推后)
 
-### Phase 3 🟡 Single-User Web MVP (MVP 已跑通, 2026-04-21; AI 未接)
+### Phase 3 🟡 Single-User Web MVP (MVP 已跑通, 2026-04-21; 默认接 Compass)
 
 **目标**: 让不懂命令行的制作人 / 研究员能用。
 
@@ -41,6 +42,7 @@
 - ✅ 游戏名 + 商店链接 (Steam/App Store/Google Play)
 - ✅ 1 个视频链接 (Phase 3 先做 1 个, 后续扩到 3 个)
 - ✅ 参考文章 / 备注 (选填)
+- ✅ `reference_url` / `notes` 中的 `mp.weixin` 链接自动抓正文并并入评审上下文
 - ✅ `raw_assets.zip` 上传通道 (跳过 pipeline 的 fetch 阶段)
 - ✅ `review.json` 上传通道 (跳过 AI 评审阶段, 临时方案)
 - ⏳ 重点维度 / 对标产品 (Phase 4 加)
@@ -50,10 +52,11 @@
 - ✅ 下载 bundle.zip 或单文件 (.docx / .xlsx / .md)
 - ⏳ 网页报告 (Phase 4 加, 先不做)
 
-**已知 gap (要接 LLM 才算 Phase 3 收尾)**:
-1. `apps/api/api/ai_stub.py` 生成占位 review.json — 必须替换为真实 5 评委 × 7 维度评审
+**已知 gap**:
+1. `apps/api/api/ai_stub.py` 虽已接 Compass, 但 prompt / 评审质量 / 多模态输入仍需迭代
 2. `scripts/review/fetch_game_assets.py` 还在 ppt-master, game-review Web 侧暂不能自动抓素材, 依赖用户上传或手工放入
 3. 视频关键帧抽取 / 缩略图生成链路未串通 Web UI
+4. 网页文章自动抓取当前优先覆盖 `mp.weixin`；其他来源站点的稳定性仍需补样本验证
 
 ### Phase 4 ⏳ Multi-Tenant SaaS (远期, 2-3 周)
 

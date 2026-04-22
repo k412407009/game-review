@@ -25,7 +25,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .schemas import JobCreate, JobProgress, JobRecord, JobStage
+from .schemas import JobActivity, JobCreate, JobProgress, JobRecord, JobStage
 
 # 数据根目录; 可用 env 覆盖
 import os
@@ -56,8 +56,34 @@ def job_dir(job_id: str) -> Path:
     return JOBS_ROOT / job_id
 
 
-async def create_job(req: JobCreate) -> JobRecord:
+def _find_existing_by_client_request_id(client_request_id: str) -> JobRecord | None:
+    for rec in _JOBS.values():
+        if rec.request.client_request_id == client_request_id:
+            return rec
+
+    if not JOBS_ROOT.exists():
+        return None
+
+    for d in sorted(JOBS_ROOT.iterdir(), reverse=True):
+        if not d.is_dir() or not _JOB_ID_RE.match(d.name):
+            continue
+        rec = _load_from_disk(d.name)
+        if rec is None:
+            continue
+        if rec.request.client_request_id != client_request_id:
+            continue
+        _JOBS[rec.job_id] = rec
+        return rec
+    return None
+
+
+async def create_job(req: JobCreate) -> tuple[JobRecord, bool]:
     async with _LOCK:
+        if req.client_request_id:
+            existing = _find_existing_by_client_request_id(req.client_request_id)
+            if existing is not None:
+                return existing, False
+
         jid = new_job_id()
         while jid in _JOBS or job_dir(jid).exists():
             jid = new_job_id()
@@ -70,11 +96,20 @@ async def create_job(req: JobCreate) -> JobRecord:
             job_id=jid,
             created_at=_now(),
             request=req,
-            progress=JobProgress(stage=JobStage.QUEUED, percent=0, message="任务已创建", updated_at=_now()),
+            progress=JobProgress(
+                stage=JobStage.QUEUED,
+                percent=0,
+                message="任务已创建",
+                details=["等待后台流水线开始执行"],
+                updated_at=_now(),
+            ),
+            activity_log=[
+                JobActivity(stage=JobStage.QUEUED, message="任务已创建", created_at=_now())
+            ],
         )
         _JOBS[jid] = rec
         _persist(rec)
-        return rec
+        return rec, True
 
 
 async def get_job(job_id: str) -> JobRecord | None:
@@ -86,6 +121,13 @@ async def get_job(job_id: str) -> JobRecord | None:
             if rec is not None:
                 _JOBS[job_id] = rec
         return rec
+
+
+async def get_job_by_client_request_id(client_request_id: str) -> JobRecord | None:
+    async with _LOCK:
+        if not client_request_id:
+            return None
+        return _find_existing_by_client_request_id(client_request_id)
 
 
 async def list_jobs(limit: int = 50) -> list[JobRecord]:
@@ -101,6 +143,7 @@ async def update_progress(
     stage: JobStage | None = None,
     percent: int | None = None,
     message: str | None = None,
+    details: list[str] | None = None,
     artifacts: list[str] | None = None,
     download_url: str | None = None,
     error: str | None = None,
@@ -116,6 +159,15 @@ async def update_progress(
             p.percent = max(0, min(100, percent))
         if message is not None:
             p.message = message
+            rec.activity_log.append(
+                JobActivity(
+                    stage=p.stage if stage is None else stage,
+                    message=message,
+                    created_at=_now(),
+                )
+            )
+        if details is not None:
+            p.details = details
         p.updated_at = _now()
         if artifacts is not None:
             rec.artifacts = artifacts
@@ -123,6 +175,19 @@ async def update_progress(
             rec.download_url = download_url
         if error is not None:
             rec.error = error
+        if len(rec.activity_log) > 200:
+            rec.activity_log = rec.activity_log[-200:]
+        _persist(rec)
+
+
+async def append_activity(job_id: str, *, stage: JobStage, message: str) -> None:
+    async with _LOCK:
+        rec = _JOBS.get(job_id)
+        if rec is None:
+            return
+        rec.activity_log.append(JobActivity(stage=stage, message=message, created_at=_now()))
+        if len(rec.activity_log) > 200:
+            rec.activity_log = rec.activity_log[-200:]
         _persist(rec)
 
 

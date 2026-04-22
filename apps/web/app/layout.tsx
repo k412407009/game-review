@@ -2,10 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 
+const apiUrl =
+  process.env.NEXT_PUBLIC_API_URL || "https://api.run.ingarena.net";
+
 export const metadata: Metadata = {
   title: "game-review · 5 评委 × 7 维度评审",
   description:
     "对外部已上线游戏 (商店页 + gameplay 视频) 或内部立项 PPT 做结构化评审, 产出 Word + Excel + Markdown 三件套",
+  other: {
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+    Pragma: "no-cache",
+    Expires: "0",
+  },
 };
 
 export default function RootLayout({
@@ -51,7 +59,7 @@ export default function RootLayout({
             <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
               <span>5 评委 × 7 维度</span>
               <span>
-                API: <code className="font-mono text-ink-300">localhost:8787</code>
+                API: <code className="font-mono text-ink-300">{apiUrl}</code>
               </span>
             </div>
           </footer>

@@ -16,8 +16,10 @@ Review · 视觉索引 Sheet 生成器 (通用版)
        生成默认条目 (label = "商店图 N", desc 为空)
   * 视频关键帧:
      - 从 review.json 的 video_evidence.key_scenes_human_read 读
+     - desc 缺失时, 回退到 raw_assets/**/gameplay/descriptions.json
      - frame 字段如 "scene_1281 (长视频 43s)", 自动在
        <project>/raw_assets/**/gameplay/frames/**/scene_1281.* 里反查实际文件路径
+     - 即使图源缺失, 也保留该视频行并明确标 "(图源缺失)"
      - 如果整个 review.json 没有 video_evidence, 则跳过视频部分 (例如内部 PPT 评审)
 
 依赖: openpyxl, Pillow (PIL)
@@ -169,6 +171,45 @@ def _discover_store_images(project_dir: Path, review_data: dict[str, Any]) -> li
 
 # ============== 数据源: 视频关键帧 ==============
 
+def _load_descriptions(project_dir: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """聚合 raw_assets/**/gameplay/descriptions.json, 返回相对路径/scene_id 两种索引。"""
+    raw_root = project_dir / "raw_assets"
+    by_rel: dict[str, str] = {}
+    by_scene: dict[str, str] = {}
+    if not raw_root.exists():
+        return by_rel, by_scene
+
+    for game_dir in sorted(raw_root.iterdir()):
+        if not game_dir.is_dir():
+            continue
+        desc_path = game_dir / "gameplay" / "descriptions.json"
+        if not desc_path.exists():
+            continue
+        try:
+            payload = json.loads(desc_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for rel, desc in payload.items():
+            desc = str(desc).strip()
+            if not desc or desc.startswith("ERROR"):
+                continue
+            by_rel.setdefault(rel, desc)
+            m = SCENE_ID_RE.search(rel)
+            if m:
+                by_scene.setdefault(m.group(1), desc)
+    return by_rel, by_scene
+
+
+def _guess_missing_frame_path(project_dir: Path, scene_id: str) -> Path | None:
+    raw_root = project_dir / "raw_assets"
+    if not raw_root.exists():
+        return None
+    game_dirs = [d for d in sorted(raw_root.iterdir()) if d.is_dir()]
+    if not game_dirs:
+        return None
+    return game_dirs[0] / "gameplay" / "frames" / "__missing__" / f"scene_{scene_id}.jpg"
+
+
 def _find_frame_file(project_dir: Path, scene_id: str) -> Path | None:
     """
     在 <project>/raw_assets/**/gameplay/frames/**/scene_<id>.* 里找帧文件。
@@ -201,6 +242,7 @@ def _discover_video_scenes(project_dir: Path, review_data: dict[str, Any]) -> li
     ve = review_data.get("video_evidence") or {}
     frame_analysis = ve.get("frame_analysis") or {}
     scenes = frame_analysis.get("key_scenes_human_read") or []
+    _, desc_by_scene = _load_descriptions(project_dir)
 
     items: list[dict] = []
     for idx, s in enumerate(scenes, 1):
@@ -211,11 +253,13 @@ def _discover_video_scenes(project_dir: Path, review_data: dict[str, Any]) -> li
         scene_num = m.group(1)
         path = _find_frame_file(project_dir, scene_num)
         if path is None:
-            continue
+            path = _guess_missing_frame_path(project_dir, scene_num)
 
         dims = s.get("dims_affected") or []
         dims_tag = f" [影响 {', '.join(dims)}]" if dims else ""
-        content = s.get("content") or ""
+        content = (s.get("content") or "").strip()
+        if not content:
+            content = desc_by_scene.get(scene_num, "")
 
         items.append({
             "code": f"V{idx}",
@@ -327,9 +371,10 @@ def add_visual_sheet(
     def _prep_thumbs(items: list[dict]) -> list[Path | None]:
         out: list[Path | None] = []
         for it in items:
-            src: Path = it["src"]
-            if not src.exists():
-                _msg(quiet, f"  WARN: missing {src}")
+            src: Path | None = it.get("src")
+            if src is None or not src.exists():
+                if src is not None:
+                    _msg(quiet, f"  WARN: missing {src}")
                 out.append(None)
                 continue
             name = f"{it['code']}__{src.stem}.png".replace(" ", "_")

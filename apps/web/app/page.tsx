@@ -2,37 +2,83 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { createJob, type JobMode } from "@/lib/api";
+import {
+  createJob,
+  findJobByClientRequestId,
+  getHealth,
+  type JobMode,
+} from "@/lib/api";
+
+const healthUrl =
+  process.env.NEXT_PUBLIC_API_URL || "https://api.run.ingarena.net";
+const NOTES_MAX_LENGTH = 20000;
 
 export default function HomePage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function goToJob(jobId: string) {
+    if (typeof window !== "undefined") {
+      window.location.assign(`/jobs/${jobId}`);
+      return;
+    }
+    router.push(`/jobs/${jobId}`);
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    const clientRequestId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     try {
       const f = e.currentTarget;
       const data = new FormData(f);
       const reviewFile = (f.elements.namedItem("review_json") as HTMLInputElement).files?.[0];
       const assetsFile = (f.elements.namedItem("raw_assets_zip") as HTMLInputElement).files?.[0];
+      const notes = String(data.get("notes") || "").trim();
+
+      if (notes.length > NOTES_MAX_LENGTH) {
+        throw new Error(`备注 / 上下文最多 ${NOTES_MAX_LENGTH} 个字符，当前过长，请精简后再提交。`);
+      }
 
       const rec = await createJob({
         game_id: String(data.get("game_id") || "").trim(),
         game_name: String(data.get("game_name") || "").trim(),
+        clientRequestId,
         mode: (String(data.get("mode")) as JobMode) || "external-game",
         with_visuals: data.get("with_visuals") === "on",
         store_url: String(data.get("store_url") || "").trim() || undefined,
         video_url: String(data.get("video_url") || "").trim() || undefined,
-        notes: String(data.get("notes") || "").trim() || undefined,
+        reference_url: String(data.get("reference_url") || "").trim() || undefined,
+        notes: notes || undefined,
         review_json: reviewFile,
         raw_assets_zip: assetsFile,
       });
-      router.push(`/jobs/${rec.job_id}`);
+      goToJob(rec.job_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      let message = err instanceof Error ? err.message : String(err);
+      if (message === "Failed to fetch") {
+        try {
+          const recovered = await findJobByClientRequestId(clientRequestId);
+          goToJob(recovered.job_id);
+          return;
+        } catch {
+          // ignore and continue to diagnostics below
+        }
+        try {
+          await getHealth();
+          message =
+            "页面当前能访问 API，但本次提交请求在浏览器侧失败。常见原因是旧缓存页面或浏览器扩展拦截。请先按 Command + Shift + R 强制刷新后再试。";
+        } catch {
+          message =
+            "无法连接 API。请先确认 https://api.run.ingarena.net/health 能打开，再重试。";
+        }
+      }
+      setError(message);
       setSubmitting(false);
     }
   }
@@ -43,7 +89,7 @@ export default function HomePage() {
         <h1 className="text-3xl font-bold">提交评审任务</h1>
         <p className="text-ink-300 mt-2">
           5 位评委 × 7 个维度, 产出 <strong>Word + Excel + Markdown</strong> 三件套.
-          <span className="text-ink-400 ml-2">(Phase 3 MVP · AI 评审当前是 stub, 需接入 LLM)</span>
+          <span className="text-ink-400 ml-2">(Phase 3 MVP · 默认走 Compass, 异常时回退 stub)</span>
         </p>
       </section>
 
@@ -96,7 +142,7 @@ export default function HomePage() {
                 className="w-4 h-4 accent-accent-500"
               />
               <span className="text-sm text-ink-200">
-                生成 <strong>视觉索引 Sheet</strong> (需 raw_assets 素材)
+                生成 <strong>视觉索引 Sheet</strong> (支持自动抓商店截图 / 视频关键帧，也可手动上传 raw_assets)
               </span>
             </label>
           </div>
@@ -110,7 +156,7 @@ export default function HomePage() {
             className="input"
             placeholder="https://play.google.com/store/apps/details?id=..."
           />
-          <p className="hint">Phase 3 仅作元数据记录, Phase 4 会接入自动抓取</p>
+          <p className="hint">支持 Google Play / App Store 自动抓商店文案、评分信息和截图。</p>
         </div>
 
         <div>
@@ -121,6 +167,18 @@ export default function HomePage() {
             className="input"
             placeholder="https://youtube.com/watch?v=..."
           />
+          <p className="hint">支持 YouTube 自动抽关键帧，并并入评审上下文与视觉索引。</p>
+        </div>
+
+        <div>
+          <label className="label" htmlFor="reference_url">参考文章 URL (可选)</label>
+          <input
+            id="reference_url"
+            name="reference_url"
+            className="input"
+            placeholder="https://mp.weixin.qq.com/s/..."
+          />
+          <p className="hint">支持微信公众号文章；后端会自动抓正文并并入评审上下文。</p>
         </div>
 
         <div>
@@ -129,9 +187,11 @@ export default function HomePage() {
             id="notes"
             name="notes"
             rows={3}
+            maxLength={NOTES_MAX_LENGTH}
             className="input resize-y"
-            placeholder="例: 这款游戏是 4X SLG 海洋题材, 重点看 D1 匹配度 + D5 商业化..."
+            placeholder="例: 这款游戏是 4X SLG 海洋题材, 重点看 D1 匹配度 + D5 商业化；也可直接粘贴 mp.weixin 链接"
           />
+          <p className="hint">最多 {NOTES_MAX_LENGTH} 个字符；支持在正文里直接粘贴 mp.weixin 链接。</p>
         </div>
 
         <details className="border border-ink-600 rounded-lg p-4 bg-ink-900/60">
@@ -188,7 +248,7 @@ export default function HomePage() {
             <strong>提交失败:</strong> {error}
             <div className="mt-1 text-ink-300">
               检查 API 是否启动:{" "}
-              <code className="font-mono">curl http://localhost:8787/health</code>
+              <code className="font-mono">curl {healthUrl}/health</code>
             </div>
           </div>
         )}
@@ -197,25 +257,30 @@ export default function HomePage() {
           <button
             type="submit"
             disabled={submitting}
-            className="btn btn-primary"
-          >
-            {submitting ? "提交中…" : "开始评审"}
+          className="btn btn-primary"
+        >
+            {submitting ? "正在提交…" : "开始评审"}
           </button>
           <button type="reset" className="btn btn-ghost">
             重置
           </button>
         </div>
+        {submitting && (
+          <p className="text-sm text-ink-400">
+            正在把表单提交到 API；只有自动跳转到任务详情页，才算任务创建成功。
+          </p>
+        )}
       </form>
 
       <section className="card p-6 bg-ink-900/60">
         <h2 className="text-lg font-semibold mb-3">流水线阶段</h2>
         <ol className="grid gap-2 text-sm text-ink-200 list-decimal pl-5">
           <li>
-            <strong>准备素材</strong>: 解压上传的 raw_assets.zip (如果有)
+            <strong>准备素材</strong>: 解压 raw_assets.zip，并自动抓取参考文章正文 (如果提供了 mp.weixin / 文章 URL)
           </li>
           <li>
-            <strong>评审打分</strong>: 用户提供的 review.json OR AI stub (
-            <span className="text-warning-500">接 LLM 前是占位</span>)
+            <strong>评审打分</strong>: 用户提供的 review.json OR Compass 自动评审 (
+            <span className="text-warning-500">上游异常时才回退到占位 stub</span>)
           </li>
           <li>
             <strong>生成报告</strong>: 调 <code className="font-mono">game-review review</code> CLI

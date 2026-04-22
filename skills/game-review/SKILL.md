@@ -132,6 +132,7 @@ game-review review <project_dir> --mode external-game --with-visuals
 # 产出: 在 3 件套基础上, xlsx 多一个 "视觉索引" sheet
 #   商店截图区: 按 visual_catalog.store 或 auto-scan raw_assets/*/store/
 #   视频关键帧区: 按 video_evidence.key_scenes_human_read 的 scene id 反查
+#   desc 缺失时会回退到 raw_assets/*/gameplay/descriptions.json
 ```
 
 ### 跨项目汇总
@@ -151,6 +152,18 @@ game-review visuals <project_dir> [--xlsx path/to/report.xlsx]
 ```
 
 常见用法: 已经跑过一次 review 但没开 `--with-visuals`, 想在不重跑业务的情况下补视觉索引。
+
+### `raw_assets` 保留规则
+
+外部游戏评审如果要可复现, 不要只保存最终 `docx/xlsx/md`。至少保留:
+
+- `raw_assets/<game>/store/`
+- `raw_assets/<game>/gameplay/frames/`
+- `raw_assets/<game>/gameplay/labels.json`
+- `raw_assets/<game>/gameplay/descriptions.json`
+- `raw_assets/<game>/metadata.json`
+
+否则 `--with-visuals` 只能复现文字结构, 无法复现缩略图。
 
 ## 依赖
 

@@ -83,6 +83,8 @@ export default function JobDetailPage({
 
       <ProgressCard job={job} />
 
+      <ActivityCard job={job} />
+
       {terminal && job.progress.stage === "done" && <DoneCard job={job} />}
 
       {job.progress.stage === "failed" && <FailedCard job={job} />}
@@ -122,6 +124,41 @@ function ProgressCard({ job }: { job: JobRecord }) {
         </p>
       )}
       <p className="text-sm text-ink-200 mt-3">{job.progress.message}</p>
+      {job.progress.details.length > 0 && (
+        <ul className="mt-4 grid gap-2 text-sm text-ink-300">
+          {job.progress.details.map((detail, index) => (
+            <li key={`${detail}-${index}`} className="flex gap-2">
+              <span className="text-accent-400">•</span>
+              <span className="break-all">{detail}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ActivityCard({ job }: { job: JobRecord }) {
+  if (job.activity_log.length === 0) {
+    return null;
+  }
+  const items = [...job.activity_log].reverse();
+  return (
+    <div className="card p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="inline-block w-2 h-2 bg-accent-500 rounded-full"></span>
+        <h2 className="text-lg font-semibold">处理轨迹</h2>
+      </div>
+      <ul className="grid gap-3">
+        {items.map((item, index) => (
+          <li key={`${item.created_at}-${index}`} className="border-l border-ink-700 pl-4">
+            <div className="text-xs font-mono text-ink-500">
+              {new Date(item.created_at).toLocaleString("zh-CN")} · {STAGE_LABELS[item.stage]}
+            </div>
+            <div className="text-sm text-ink-200 mt-1">{item.message}</div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -220,6 +257,12 @@ function DetailsCard({ job }: { job: JobRecord }) {
           <dt className="text-ink-400">video_url</dt>
           <dd className="font-mono break-all">
             {job.request.video_url || <span className="text-ink-500">(未提供)</span>}
+          </dd>
+        </div>
+        <div className="md:col-span-2">
+          <dt className="text-ink-400">reference_url</dt>
+          <dd className="font-mono break-all">
+            {job.request.reference_url || <span className="text-ink-500">(未提供)</span>}
           </dd>
         </div>
         <div className="md:col-span-2">

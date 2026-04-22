@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ================= Job lifecycle =================
@@ -40,18 +40,49 @@ class JobCreate(BaseModel):
 
     game_id: str = Field(..., min_length=1, max_length=64, description="项目 id, 安全文件名")
     game_name: str = Field(..., min_length=1, max_length=128)
+    client_request_id: str | None = Field(
+        default=None,
+        max_length=128,
+        description="前端生成的幂等请求 id；用于提交后网络失败时恢复已创建任务",
+    )
     mode: JobMode = JobMode.EXTERNAL_GAME
     with_visuals: bool = True
     store_url: str | None = Field(default=None, description="商店页 URL (Phase 3 仅作记录, 不自动抓取)")
     video_url: str | None = Field(default=None, description="gameplay 视频 URL (同上)")
-    notes: str | None = Field(default=None, max_length=2000, description="备注 / 上下文")
+    reference_url: str | None = Field(default=None, description="参考文章 URL，可自动抓正文并并入评审上下文")
+    notes: str | None = Field(default=None, max_length=20000, description="备注 / 上下文")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_optional_strings(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        for key in ("client_request_id", "store_url", "video_url", "reference_url", "notes"):
+            value = normalized.get(key)
+            if not isinstance(value, str):
+                continue
+            stripped = value.strip()
+            normalized[key] = stripped or None
+        for key in ("game_id", "game_name"):
+            value = normalized.get(key)
+            if isinstance(value, str):
+                normalized[key] = value.strip()
+        return normalized
 
 
 class JobProgress(BaseModel):
     stage: JobStage
     percent: int = Field(ge=0, le=100)
     message: str = ""
+    details: list[str] = Field(default_factory=list, description="当前阶段的已知步骤/说明")
     updated_at: datetime
+
+
+class JobActivity(BaseModel):
+    stage: JobStage
+    message: str
+    created_at: datetime
 
 
 class JobRecord(BaseModel):
@@ -62,6 +93,7 @@ class JobRecord(BaseModel):
     artifacts: list[str] = Field(default_factory=list, description="产物文件名列表 (存在 output/ 目录下)")
     download_url: str | None = None
     error: str | None = None
+    activity_log: list[JobActivity] = Field(default_factory=list, description="用户可见的任务处理轨迹")
 
 
 # ================= game-review schema slim =================

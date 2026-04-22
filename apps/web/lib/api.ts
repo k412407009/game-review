@@ -1,8 +1,8 @@
 // game-review API 客户端 (Phase 3)
-// 默认指向 http://localhost:8787, 可用 NEXT_PUBLIC_API_URL 覆盖。
+// 生产默认指向 Run 上的 API, 本地开发可用 NEXT_PUBLIC_API_URL 覆盖。
 
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.run.ingarena.net";
 
 export type JobStage =
   | "queued"
@@ -19,16 +19,25 @@ export interface JobProgress {
   stage: JobStage;
   percent: number;
   message: string;
+  details: string[];
   updated_at: string;
+}
+
+export interface JobActivity {
+  stage: JobStage;
+  message: string;
+  created_at: string;
 }
 
 export interface JobRequest {
   game_id: string;
   game_name: string;
+  client_request_id: string | null;
   mode: JobMode;
   with_visuals: boolean;
   store_url: string | null;
   video_url: string | null;
+  reference_url: string | null;
   notes: string | null;
 }
 
@@ -40,15 +49,18 @@ export interface JobRecord {
   artifacts: string[];
   download_url: string | null;
   error: string | null;
+  activity_log: JobActivity[];
 }
 
 export interface CreateJobInput {
   game_id: string;
   game_name: string;
+  clientRequestId?: string;
   mode: JobMode;
   with_visuals: boolean;
   store_url?: string;
   video_url?: string;
+  reference_url?: string;
   notes?: string;
   review_json?: File;
   raw_assets_zip?: File;
@@ -60,7 +72,18 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     let msg = `${res.status} ${res.statusText}`;
     try {
       const body = await res.json();
-      msg = body?.detail || body?.message || msg;
+      const detail = body?.detail;
+      if (typeof detail === "string" && detail.trim()) {
+        msg = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        const first = detail[0];
+        msg =
+          typeof first?.msg === "string"
+            ? first.msg
+            : JSON.stringify(first);
+      } else if (typeof body?.message === "string" && body.message.trim()) {
+        msg = body.message;
+      }
     } catch {
       // ignore
     }
@@ -77,10 +100,12 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
   const form = new FormData();
   form.append("game_id", input.game_id);
   form.append("game_name", input.game_name);
+  if (input.clientRequestId) form.append("client_request_id", input.clientRequestId);
   form.append("mode", input.mode);
   form.append("with_visuals", String(input.with_visuals));
   if (input.store_url) form.append("store_url", input.store_url);
   if (input.video_url) form.append("video_url", input.video_url);
+  if (input.reference_url) form.append("reference_url", input.reference_url);
   if (input.notes) form.append("notes", input.notes);
   if (input.review_json) form.append("review_json", input.review_json);
   if (input.raw_assets_zip) form.append("raw_assets_zip", input.raw_assets_zip);
@@ -89,6 +114,10 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     method: "POST",
     body: form,
   });
+}
+
+export async function findJobByClientRequestId(clientRequestId: string): Promise<JobRecord> {
+  return http(`/jobs/by-client-request/${encodeURIComponent(clientRequestId)}`);
 }
 
 export async function getJob(jobId: string): Promise<JobRecord> {

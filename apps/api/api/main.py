@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import ValidationError
 
 from . import __version__
 from .job_store import (
@@ -27,6 +27,7 @@ from .job_store import (
     create_job,
     delete_job,
     get_job,
+    get_job_by_client_request_id,
     job_dir,
     list_jobs,
 )
@@ -57,12 +58,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -83,12 +80,15 @@ async def health() -> dict[str, Any]:
 @app.post("/jobs", response_model=JobRecord, status_code=201)
 async def create_job_endpoint(
     background_tasks: BackgroundTasks,
+    response: Response,
     game_id: str = Form(...),
     game_name: str = Form(...),
+    client_request_id: str | None = Form(None),
     mode: JobMode = Form(JobMode.EXTERNAL_GAME),
     with_visuals: bool = Form(True),
     store_url: str | None = Form(None),
     video_url: str | None = Form(None),
+    reference_url: str | None = Form(None),
     notes: str | None = Form(None),
     review_json: UploadFile | None = File(None),
     raw_assets_zip: UploadFile | None = File(None),
@@ -96,19 +96,28 @@ async def create_job_endpoint(
     """提交评审任务.
 
     两种用法:
-      A. 只填元数据 → API 用 AI stub 生成占位 review.json (Phase 3 默认)
+      A. 只填元数据 → API 默认调用 Compass 生成 review.json
       B. 上传 review.json (+ 可选 raw_assets.zip) → 用用户提供的, 跳过 AI 评审
     """
-    req = JobCreate(
-        game_id=game_id,
-        game_name=game_name,
-        mode=mode,
-        with_visuals=with_visuals,
-        store_url=store_url,
-        video_url=video_url,
-        notes=notes,
-    )
-    rec = await create_job(req)
+    try:
+        req = JobCreate(
+            game_id=game_id,
+            game_name=game_name,
+            client_request_id=client_request_id,
+            mode=mode,
+            with_visuals=with_visuals,
+            store_url=store_url,
+            video_url=video_url,
+            reference_url=reference_url,
+            notes=notes,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    rec, created = await create_job(req)
+
+    if not created:
+        response.status_code = 200
+        return rec
 
     # 保存上传的文件到 input/
     d = job_dir(rec.job_id)
@@ -122,6 +131,14 @@ async def create_job_endpoint(
     # 跑 pipeline 作为 background task (不 block 请求)
     background_tasks.add_task(run_pipeline, rec.job_id)
 
+    return rec
+
+
+@app.get("/jobs/by-client-request/{client_request_id}", response_model=JobRecord)
+async def get_job_by_client_request_id_endpoint(client_request_id: str) -> JobRecord:
+    rec = await get_job_by_client_request_id(client_request_id)
+    if rec is None:
+        raise HTTPException(404, detail=f"client_request_id {client_request_id} 不存在")
     return rec
 
 

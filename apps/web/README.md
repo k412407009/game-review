@@ -1,6 +1,6 @@
 # apps/web · game-review Web UI (Phase 3 MVP)
 
-Next.js 15 + Tailwind 3 + React 19 前端, 跑在 `localhost:3000`, 对接 `localhost:8787` 的 FastAPI 后端。
+Next.js 15 + Tailwind 3 + React 19 前端, 本地默认跑在 `localhost:3000`; 生产环境默认对接 `https://api.run.ingarena.net`, 本地开发可用 `NEXT_PUBLIC_API_URL` 覆盖。
 
 ## 启动
 
@@ -31,7 +31,7 @@ uvicorn api.main:app --reload --port 8787
 
 | Var | 默认 | 说明 |
 | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8787` | 后端 API 地址 |
+| `NEXT_PUBLIC_API_URL` | `https://api.run.ingarena.net` | 后端 API 地址, 本地开发时建议改成 `http://localhost:8787` |
 
 如果后端跑在其他端口/机器, 建 `apps/web/.env.local`:
 

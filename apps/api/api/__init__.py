@@ -6,8 +6,8 @@
   3. GET  /jobs/{job_id}/download  下载产物 zip
 
 业务流水线:
-  [stage 1: fetch]      抓素材 (Phase 3 stub: 如上传了就用, 没上传就 mock)
-  [stage 2: score]      AI 生成 review.json (Phase 3 stub: 固定中性评分 + TODO 接真实 LLM)
+  [stage 1: fetch]      抓素材 (如上传了就用, 没上传就跳过)
+  [stage 2: score]      AI 生成 review.json (默认 Compass, 失败回退 stub)
   [stage 3: generate]   调 game-review CLI 生成三件套
   [stage 4: package]    zip 产物, 返回下载链接
 """

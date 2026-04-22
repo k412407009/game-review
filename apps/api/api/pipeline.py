@@ -2,12 +2,12 @@
 
 4 个 stage:
   1. FETCH     把用户上传的 raw_assets / review.json 解压到 workdir (Phase 3 不自动抓取)
-  2. SCORE     调 ai_stub (或未来真实 LLM) 产出 review.json (如果用户没提供)
+  2. SCORE     调 ai_stub (内部优先 Compass, 失败回退 stub) 产出 review.json (如果用户没提供)
   3. GENERATE  调 game-review CLI 生成 docx/xlsx/md 三件套
   4. PACKAGE   zip 产物, 写好下载链接
 
-Phase 3 的 fetch 和 score 都是 stub-friendly: 用户可以自己上传 raw_assets.zip 和 review.json,
-没上传的时候走 stub (fetch 为空, score 用 ai_stub).
+Phase 3 的 fetch 和 score 都是上传友好的: 用户可以自己上传 raw_assets.zip 和 review.json,
+没上传的时候由 ai_stub 负责生成 review.json (内部优先 Compass, 失败回退 stub).
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ import sys
 import zipfile
 from pathlib import Path
 
-from . import ai_stub
-from .job_store import get_job, job_dir, update_progress
+from . import ai_stub, article_fetch, rich_context
+from .job_store import append_activity, get_job, job_dir, update_progress
 from .schemas import JobStage
 
 log = logging.getLogger(__name__)
@@ -94,29 +94,135 @@ async def run_pipeline(job_id: str) -> None:
             job_id,
             stage=JobStage.FETCHING,
             percent=10,
-            message="stage 1/4: 准备素材 (解压用户上传 or 跳过)",
+            message="stage 1/4: 准备素材与评审上下文",
+            details=[
+                "检查用户上传的 raw_assets.zip / review.json",
+                "识别参考文章链接",
+                "如命中 mp.weixin 或参考文章 URL，则自动抓正文并并入评审上下文",
+                "如提供 Google Play / App Store 链接，则自动抓商店文案与截图",
+                "如提供 YouTube 链接，则自动抽关键帧并写入 raw_assets",
+            ],
         )
 
         # workdir 内结构: <workdir>/raw_assets/<game_id>/...
         # 如果用户上传了 raw_assets.zip, 解压进去; 否则空
         raw_zip = input_dir / "raw_assets.zip"
+        user_review = input_dir / "review.json"
         if raw_zip.exists():
             ra_root = workdir / "raw_assets"
             _unzip_into(raw_zip, ra_root)
             log.info("fetch: 解压 raw_assets.zip → %s", ra_root)
+            await append_activity(
+                job_id,
+                stage=JobStage.FETCHING,
+                message="已解压 raw_assets.zip，视觉素材可供 CLI 使用",
+            )
+        else:
+            await append_activity(
+                job_id,
+                stage=JobStage.FETCHING,
+                message="未上传 raw_assets.zip，跳过素材解压",
+            )
 
-        # Phase 3 不实现自动抓取; 记录 URL 备查
-        await asyncio.sleep(0.3)
+        enriched_notes = req.notes
+        asset_bundle = None
+        if user_review.exists():
+            await append_activity(
+                job_id,
+                stage=JobStage.FETCHING,
+                message="已上传 review.json，本次跳过参考文章抓取，但仍会补抓商店页/视频素材供报告使用",
+            )
+        else:
+            candidate_urls = article_fetch.resolve_auto_fetch_urls(
+                reference_url=req.reference_url,
+                notes=req.notes,
+            )
+            if candidate_urls:
+                await update_progress(
+                    job_id,
+                    percent=22,
+                    message="stage 1/4: 抓取参考文章正文",
+                    details=[
+                        f"已识别 {len(candidate_urls)} 个待抓取链接",
+                        *candidate_urls,
+                    ],
+                )
+                bundle = await asyncio.to_thread(
+                    article_fetch.fetch_context_bundle,
+                    reference_url=req.reference_url,
+                    notes=req.notes,
+                    output_dir=workdir,
+                )
+                enriched_notes = bundle.enriched_notes
+                if bundle.articles:
+                    await append_activity(
+                        job_id,
+                        stage=JobStage.FETCHING,
+                        message=(
+                            f"已抓取 {len(bundle.articles)} 篇参考文章正文"
+                            f"（{', '.join(article.title for article in bundle.articles)}）"
+                        ),
+                    )
+                if bundle.skipped_urls:
+                    await append_activity(
+                        job_id,
+                        stage=JobStage.FETCHING,
+                        message=f"有 {len(bundle.skipped_urls)} 个链接抓取失败，已忽略并继续评审",
+                    )
+            else:
+                await append_activity(
+                    job_id,
+                    stage=JobStage.FETCHING,
+                    message="未发现可自动抓取的参考文章链接，继续使用手填备注",
+                )
+
+        asset_bundle = await asyncio.to_thread(
+            rich_context.fetch_asset_context_bundle,
+            game_id=game_id,
+            game_name=req.game_name,
+            store_url=req.store_url,
+            video_url=req.video_url,
+            notes=enriched_notes,
+            output_dir=workdir,
+        )
+        enriched_notes = asset_bundle.enriched_notes
+        if asset_bundle.store is not None:
+            await append_activity(
+                job_id,
+                stage=JobStage.FETCHING,
+                message=(
+                    f"已抓取 {asset_bundle.store.source} 商店页证据，"
+                    f"落盘 {len(asset_bundle.store.screenshot_paths)} 张截图"
+                ),
+            )
+        if asset_bundle.video is not None:
+            await append_activity(
+                job_id,
+                stage=JobStage.FETCHING,
+                message=(
+                    f"已抽取 {len(asset_bundle.video.frame_paths)} 张视频关键帧，"
+                    "并写入 raw_assets 供视觉索引与评审上下文复用"
+                ),
+            )
+        for warning in asset_bundle.warnings:
+            await append_activity(
+                job_id,
+                stage=JobStage.FETCHING,
+                message=warning,
+            )
 
         # ===== stage 2: score =====
         await update_progress(
             job_id,
             stage=JobStage.SCORING,
             percent=35,
-            message="stage 2/4: 生成 review.json (用户提供 or AI stub)",
+            message="stage 2/4: 生成 review.json (用户提供 or Compass/stub)",
+            details=[
+                "若已上传 review.json，则直接复用",
+                "否则使用 Compass 基于表单、备注和自动抓取正文生成结构化评审",
+            ],
         )
 
-        user_review = input_dir / "review.json"
         if user_review.exists():
             # 用户直接上传了 review.json → 直接放到 workdir/review/
             review_dir = workdir / "review"
@@ -124,18 +230,40 @@ async def run_pipeline(job_id: str) -> None:
             target = review_dir / f"{game_id}_review.json"
             shutil.copy2(user_review, target)
             log.info("score: 用户上传的 review.json → %s", target)
+            await append_activity(
+                job_id,
+                stage=JobStage.SCORING,
+                message="已复用用户上传的 review.json，跳过 Compass 生成",
+            )
         else:
-            # 调 AI stub
-            stub = ai_stub.generate_stub_review(
+            await append_activity(
+                job_id,
+                stage=JobStage.SCORING,
+                message="开始调用 Compass 生成结构化 review.json",
+            )
+            generated = await asyncio.to_thread(
+                ai_stub.generate_stub_review,
                 project_id=game_id,
                 project_name=req.game_name,
                 mode=req.mode.value,
                 store_url=req.store_url,
                 video_url=req.video_url,
-                notes=req.notes,
+                reference_url=req.reference_url,
+                notes=enriched_notes,
+                extra_fields=asset_bundle.review_fields if asset_bundle is not None else None,
             )
-            ai_stub.write_review_json(workdir, stub, game_id=game_id)
-            log.info("score: AI stub 写入 review.json")
+            await asyncio.to_thread(
+                ai_stub.write_review_json,
+                workdir,
+                generated,
+                game_id,
+            )
+            log.info("score: AI provider 写入 review.json")
+            await append_activity(
+                job_id,
+                stage=JobStage.SCORING,
+                message="review.json 已生成并写入工作目录",
+            )
 
         await asyncio.sleep(0.3)
 
@@ -145,12 +273,22 @@ async def run_pipeline(job_id: str) -> None:
             stage=JobStage.GENERATING,
             percent=60,
             message="stage 3/4: 调 game-review CLI 生成 docx/xlsx/md 三件套",
+            details=[
+                "执行 game-review review",
+                "产出 Word / Excel / Markdown 报告",
+            ],
         )
 
         cli = _find_cli()
         cmd = [*cli, "review", str(workdir), "--mode", req.mode.value]
         if req.with_visuals:
             cmd.append("--with-visuals")
+
+        await append_activity(
+            job_id,
+            stage=JobStage.GENERATING,
+            message=f"开始执行 CLI：{' '.join(cmd)}",
+        )
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -183,12 +321,22 @@ async def run_pipeline(job_id: str) -> None:
         if not artifacts:
             raise RuntimeError("generate 成功但没找到产物 (docx/xlsx/md), 请查看 stdout")
 
+        await append_activity(
+            job_id,
+            stage=JobStage.GENERATING,
+            message=f"CLI 已生成 {len(artifacts)} 个报告产物",
+        )
+
         # ===== stage 4: package =====
         await update_progress(
             job_id,
             stage=JobStage.PACKAGING,
             percent=85,
             message="stage 4/4: 打包下载",
+            details=[
+                "收集 docx / xlsx / md 产物",
+                "打成 bundle.zip 供下载",
+            ],
         )
 
         zip_path = output_dir / f"{game_id}_review_bundle.zip"
@@ -205,6 +353,10 @@ async def run_pipeline(job_id: str) -> None:
             stage=JobStage.DONE,
             percent=100,
             message=f"完成, {len(artifacts)} 个产物已打包",
+            details=[
+                f"bundle: {bundle_name}",
+                *all_files[1:],
+            ],
             artifacts=all_files,
             download_url=download_url,
         )
@@ -217,5 +369,6 @@ async def run_pipeline(job_id: str) -> None:
             stage=JobStage.FAILED,
             percent=100,
             message=f"失败: {type(e).__name__}",
+            details=["请展开下方错误详情查看失败原因"],
             error=str(e),
         )

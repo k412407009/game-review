@@ -31,6 +31,7 @@ desktop.ini
 # === 密钥 / 凭证 ===
 .env
 .env.local
+**/.runplatform.json
 **/api_config.json
 **/credentials*.json
 
