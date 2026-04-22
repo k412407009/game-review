@@ -8,6 +8,7 @@
 
 - **ppt-master 的本职是 "生成 PPT"**, review 是它的收尾步骤, 耦合进主 skill 后, 外部游戏评审 (不生成 PPT 的场景) 变得难用
 - 本 skill 支持 **两种输入源** (立项 PPT / 外部游戏), 未来扩展到 CLI / Web 服务更干净
+- Web/API 侧的素材抓取现在**优先复用同级 `ppt-master` 的 `fetch_game_assets.py` 逻辑**，保证本地网站链路与 Skill 链路的抓取 / 抽帧 / 标注规则一致；找不到 `ppt-master` 时再回退到自身内置 collector
 - 详见 `docs/roadmap.md`
 
 ## 快速开始

@@ -74,6 +74,11 @@ QUEUED → FETCHING → SCORING → GENERATING → PACKAGING → DONE
 3. **GENERATING**: 执行 `game-review review <workdir> --mode ... [--with-visuals]`
 4. **PACKAGING**: 把 `output/*.{docx,xlsx,md}` 打包成 zip
 
+> 本地如果同级存在 `../ppt-master/skills/ppt-master/scripts/game_assets/fetch_game_assets.py`,
+> API 的 FETCH 阶段会优先调用它做商店抓取 / 视频抽帧 / labels / descriptions 生成，
+> 这样网站链路和 PPT Master Skill 链路使用的是同一套采集逻辑。
+> 找不到该脚本时，才回退到 `api/rich_context.py` 自带的轻量 collector。
+
 ## 存储布局
 
 ```

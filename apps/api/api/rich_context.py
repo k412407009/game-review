@@ -6,7 +6,8 @@
   3. 产出可喂给 LLM 的结构化上下文, 同时补齐 review.json 的 visual/video 字段
 
 设计取向:
-  - 复用 `丁开心的游戏观察` / `ppt-master` 验证过的思路, 但只保留 game-review 真正需要的最小闭环
+  - 本地优先桥接到同级 `ppt-master` 的 `fetch_game_assets.py`, 让网站链路与 Skill 链路共用同一套抓取/抽帧/标注逻辑
+  - 如果找不到 `ppt-master` 或桥接失败, 再回退到 game-review 内置 collector, 保持网站可独立运行
   - 证据文件全部落到 `<workdir>/raw_assets/<game_id>/...`, 直接兼容现有 CLI / 视觉索引 Sheet
   - 缺依赖或上游失败时降级为 warning, 不打断整条流水线
 """
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -71,6 +73,7 @@ APPSTORE_GENERIC_TOKENS = {
     "mobile", "of", "online", "quest", "rpg", "sim", "simulator", "story",
     "survival", "the", "tycoon", "war", "world",
 }
+PPT_MASTER_FETCH_ENV = "PPT_MASTER_FETCH_SCRIPT"
 
 
 @dataclass(slots=True)
@@ -178,6 +181,329 @@ def _select_appstore_candidate(game_name: str, results: list[dict[str, Any]]) ->
     return best_app, f"matched by title score={best_score:.2f}, similarity={best_similarity:.2f}"
 
 
+def _find_ppt_master_fetch_script() -> Path | None:
+    override = os.environ.get(PPT_MASTER_FETCH_ENV, "").strip()
+    if override:
+        path = Path(override).expanduser().resolve()
+        return path if path.exists() else None
+
+    git_root = Path(__file__).resolve().parents[4]
+    candidate = git_root / "ppt-master" / "skills" / "ppt-master" / "scripts" / "game_assets" / "fetch_game_assets.py"
+    return candidate if candidate.exists() else None
+
+
+def _ppt_master_dir_name(game_name: str) -> str:
+    cleaned = re.sub(r'[<>:"/\\|?*\s]+', "-", game_name).strip("-")
+    return cleaned[:80] or "unnamed"
+
+
+def _extract_steam_app_id(store_url: str) -> str | None:
+    m = re.search(r"/app/(\d+)", store_url)
+    return m.group(1) if m else None
+
+
+def _load_descriptions_for_game(raw_project_dir: Path) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    desc_path = raw_project_dir / "gameplay" / "descriptions.json"
+    if not desc_path.exists():
+        return {}, {}, {}
+    try:
+        payload = json.loads(desc_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}, {}, {}
+
+    by_rel: dict[str, str] = {}
+    by_scene: dict[str, str] = {}
+    store_descs: dict[str, str] = {}
+    if not isinstance(payload, dict):
+        return by_rel, by_scene, store_descs
+
+    for rel_path, desc in payload.items():
+        text = str(desc or "").strip()
+        if not text:
+            continue
+        rel_key = str(rel_path).replace("\\", "/")
+        by_rel[rel_key] = text
+        stem = Path(rel_key).stem
+        if stem:
+            by_scene.setdefault(stem, text)
+        if rel_key.startswith("store/"):
+            store_descs[rel_key] = text
+    return by_rel, by_scene, store_descs
+
+
+def _merge_into_raw_assets(src_dir: Path, final_dir: Path) -> Path:
+    if not src_dir.exists():
+        return final_dir
+    if src_dir.resolve() == final_dir.resolve():
+        return final_dir
+    final_dir.parent.mkdir(parents=True, exist_ok=True)
+    if final_dir.exists():
+        shutil.copytree(src_dir, final_dir, dirs_exist_ok=True)
+        shutil.rmtree(src_dir)
+    else:
+        src_dir.rename(final_dir)
+    return final_dir
+
+
+def _pick_store_source(
+    stores_meta: dict[str, Any],
+    raw_project_dir: Path,
+    store_url: str | None,
+) -> str | None:
+    host = urllib.parse.urlparse(store_url).netloc.lower() if store_url else ""
+    if "play.google.com" in host and (raw_project_dir / "store" / "googleplay").exists():
+        return "googleplay"
+    if ("apps.apple.com" in host or "itunes.apple.com" in host) and (raw_project_dir / "store" / "appstore").exists():
+        return "appstore"
+    if "steampowered.com" in host and (raw_project_dir / "store" / "steam").exists():
+        return "steam"
+
+    for source in ("googleplay", "appstore", "steam"):
+        if source in stores_meta and (raw_project_dir / "store" / source).exists():
+            return source
+    for source in ("googleplay", "appstore", "steam"):
+        if (raw_project_dir / "store" / source).exists():
+            return source
+    return None
+
+
+def _build_store_evidence_from_ppt_master(
+    *,
+    project_dir: Path,
+    raw_project_dir: Path,
+    store_url: str | None,
+    stores_meta: dict[str, Any],
+    store_descs: dict[str, str],
+) -> StoreEvidence | None:
+    source = _pick_store_source(stores_meta, raw_project_dir, store_url)
+    if not source:
+        return None
+
+    source_dir = raw_project_dir / "store" / source
+    screenshot_files: list[Path] = []
+    for pattern in ("screenshot_*.jpg", "ipad_*.jpg"):
+        screenshot_files.extend(sorted(source_dir.glob(pattern)))
+    screenshot_paths = [_relative_posix(project_dir, path) for path in screenshot_files]
+
+    icon_path = None
+    icon_file = source_dir / "icon.png"
+    if icon_file.exists():
+        icon_path = _relative_posix(project_dir, icon_file)
+
+    info = stores_meta.get(source, {}) if isinstance(stores_meta, dict) else {}
+    if source == "googleplay":
+        title = str(info.get("title") or "")
+        developer = str(info.get("developer") or "")
+        description = str(info.get("description") or "")
+        rating = str(info.get("score") or "")
+        installs = str(info.get("installs") or info.get("ratings") or "")
+        genre = str(info.get("genre") or "")
+        release_info = str(info.get("released") or "")
+        page_url = (
+            f"https://play.google.com/store/apps/details?id={info.get('appId')}&hl=en&gl=us"
+            if info.get("appId")
+            else (store_url or "")
+        )
+        video_ref = str(info.get("video_url") or "") or None
+    elif source == "appstore":
+        title = str(info.get("trackName") or "")
+        developer = str(info.get("sellerName") or "")
+        description = str(info.get("description") or "")
+        rating = str(info.get("averageUserRating") or "")
+        installs = str(info.get("userRatingCount") or "")
+        genre = ", ".join(str(item) for item in info.get("genres") or [] if str(item).strip())
+        release_info = str(info.get("releaseDate") or "")
+        page_url = str(info.get("trackViewUrl") or store_url or "")
+        video_ref = None
+    else:
+        title = str(info.get("name") or "")
+        developer = ", ".join(str(item) for item in info.get("developers") or [] if str(item).strip())
+        description = str(info.get("description") or "")
+        rating = ""
+        installs = ""
+        genre = ", ".join(str(item) for item in info.get("genres") or [] if str(item).strip())
+        release_info = str(info.get("release_date") or "")
+        steam_id = str(info.get("steam_appid") or "")
+        page_url = (
+            f"https://store.steampowered.com/app/{steam_id}/"
+            if steam_id
+            else (store_url or "")
+        )
+        movie_urls = info.get("movie_urls") or []
+        video_ref = str(movie_urls[0]) if movie_urls else None
+
+    raw_metadata = dict(info) if isinstance(info, dict) else {}
+    if store_descs:
+        raw_metadata["descriptions"] = store_descs
+
+    return StoreEvidence(
+        source=source,
+        page_url=page_url,
+        title=title,
+        developer=developer,
+        description=_trim_text(description, MAX_DESCRIPTION_CHARS),
+        rating=rating,
+        installs=installs,
+        genre=genre,
+        release_info=release_info,
+        icon_path=icon_path,
+        screenshot_paths=screenshot_paths,
+        video_url=video_ref,
+        raw_metadata=raw_metadata,
+    )
+
+
+def _probe_video_metadata(video_url: str | None) -> dict[str, Any]:
+    if not video_url or YoutubeDL is None:
+        return {}
+    try:
+        with YoutubeDL({"quiet": True, "no_warnings": True, "socket_timeout": 30}) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+    except Exception as exc:
+        log.warning("yt-dlp metadata probe failed: %s", exc)
+        return {}
+    return info if isinstance(info, dict) else {}
+
+
+def _build_video_evidence_from_ppt_master(
+    *,
+    project_dir: Path,
+    raw_project_dir: Path,
+    video_url: str | None,
+    gameplay_meta: dict[str, Any],
+    scene_descs: dict[str, str],
+) -> VideoEvidence | None:
+    frame_files = sorted((raw_project_dir / "gameplay" / "frames").rglob("*.jpg"))
+    if not frame_files:
+        return None
+
+    frame_paths = [_relative_posix(project_dir, path) for path in frame_files]
+    probed = _probe_video_metadata(video_url)
+    videos = gameplay_meta.get("videos") or []
+    title = str(probed.get("title") or "")
+    if not title and videos:
+        title = str(Path(videos[0].get("filename") or "").stem)
+    duration_seconds = int(probed.get("duration") or 0)
+    description = _trim_text(str(probed.get("description") or ""), MAX_DESCRIPTION_CHARS)
+    resolved_url = str(probed.get("webpage_url") or video_url or "")
+    uploader = str(probed.get("uploader") or "")
+    interval_seconds = 5 if gameplay_meta.get("mode") in {"smart", "scene+dedup"} else 0
+
+    raw_metadata = dict(gameplay_meta) if isinstance(gameplay_meta, dict) else {}
+    if scene_descs:
+        raw_metadata["scene_descriptions"] = scene_descs
+
+    return VideoEvidence(
+        source_url=video_url or resolved_url,
+        resolved_url=resolved_url or video_url or "",
+        title=title,
+        uploader=uploader,
+        duration_seconds=duration_seconds,
+        description=description,
+        frame_paths=frame_paths,
+        frame_interval_seconds=interval_seconds,
+        raw_metadata=raw_metadata,
+    )
+
+
+def _collect_with_ppt_master_fetcher(
+    *,
+    game_id: str,
+    game_name: str,
+    store_url: str | None,
+    video_url: str | None,
+    project_dir: Path,
+) -> tuple[StoreEvidence | None, VideoEvidence | None, list[str]] | None:
+    fetch_script = _find_ppt_master_fetch_script()
+    if fetch_script is None:
+        return None
+
+    raw_root = project_dir / "raw_assets"
+    raw_root.mkdir(parents=True, exist_ok=True)
+
+    cmd = [sys.executable, str(fetch_script), game_name, "--out", str(raw_root), "--label"]
+    if store_url and not video_url:
+        cmd.append("--store-only")
+    elif video_url and not store_url:
+        cmd.append("--gameplay-only")
+
+    if video_url:
+        cmd.extend(["--video", video_url])
+
+    if store_url:
+        host = urllib.parse.urlparse(store_url).netloc.lower()
+        if "play.google.com" in host:
+            app_id = _extract_googleplay_id(store_url)
+            if app_id:
+                cmd.extend(["--gplay-id", app_id])
+        elif "apps.apple.com" in host or "itunes.apple.com" in host:
+            app_id = _extract_appstore_id(store_url)
+            if app_id:
+                cmd.extend(["--appstore-id", app_id])
+        elif "steampowered.com" in host:
+            app_id = _extract_steam_app_id(store_url)
+            if app_id:
+                cmd.extend(["--steam-id", app_id])
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=600,
+        )
+    except Exception as exc:
+        log.warning("ppt-master fetch bridge failed before execution: %s", exc)
+        return None
+
+    if proc.returncode != 0:
+        tail = " | ".join(line.strip() for line in (proc.stderr or proc.stdout).splitlines()[-4:] if line.strip())
+        log.warning("ppt-master fetch bridge exited %s: %s", proc.returncode, tail)
+        return None
+
+    temp_dir = raw_root / _ppt_master_dir_name(game_name)
+    final_dir = _merge_into_raw_assets(temp_dir, raw_root / game_id)
+    meta_path = final_dir / "metadata.json"
+    meta = {}
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            meta = {}
+
+    desc_by_rel, scene_descs, store_descs = _load_descriptions_for_game(final_dir)
+    store = _build_store_evidence_from_ppt_master(
+        project_dir=project_dir,
+        raw_project_dir=final_dir,
+        store_url=store_url,
+        stores_meta=meta.get("stores", {}) if isinstance(meta, dict) else {},
+        store_descs=store_descs,
+    )
+    video = _build_video_evidence_from_ppt_master(
+        project_dir=project_dir,
+        raw_project_dir=final_dir,
+        video_url=video_url,
+        gameplay_meta=meta.get("gameplay", {}) if isinstance(meta, dict) else {},
+        scene_descs=scene_descs,
+    )
+
+    warnings: list[str] = []
+    if store is not None or video is not None:
+        warnings.append("素材采集优先使用 ppt-master 主采集器，已与 Skill 流保持同一套逻辑。")
+    elif store_url or video_url:
+        warnings.append("ppt-master 主采集器未产出素材，已回退到 game-review 内置采集器。")
+        return None
+
+    # Keep description index available for later compose/build helpers.
+    if store is not None and desc_by_rel:
+        store.raw_metadata.setdefault("descriptions", store_descs)
+    if video is not None and scene_descs:
+        video.raw_metadata.setdefault("scene_descriptions", scene_descs)
+    return store, video, warnings
+
+
 def fetch_asset_context_bundle(
     *,
     game_id: str,
@@ -195,31 +521,44 @@ def fetch_asset_context_bundle(
     store_evidence: StoreEvidence | None = None
     video_evidence: VideoEvidence | None = None
 
-    if store_url:
-        try:
-            store_evidence = _collect_store_evidence(
-                game_name=game_name,
-                store_url=store_url,
-                project_dir=workdir,
-                raw_project_dir=raw_project_dir,
-            )
-        except Exception as exc:  # pragma: no cover - network / upstream failures vary
-            msg = f"商店页自动抓取失败: {type(exc).__name__}: {exc}"
-            warnings.append(msg)
-            log.warning(msg)
+    bridge = _collect_with_ppt_master_fetcher(
+        game_id=game_id,
+        game_name=game_name,
+        store_url=store_url,
+        video_url=video_url,
+        project_dir=workdir,
+    )
+    if bridge is not None:
+        store_evidence, video_evidence, bridge_warnings = bridge
+        warnings.extend(bridge_warnings)
+    else:
+        if store_url:
+            try:
+                store_evidence = _collect_store_evidence(
+                    game_name=game_name,
+                    store_url=store_url,
+                    project_dir=workdir,
+                    raw_project_dir=raw_project_dir,
+                )
+            except Exception as exc:  # pragma: no cover - network / upstream failures vary
+                msg = f"商店页自动抓取失败: {type(exc).__name__}: {exc}"
+                warnings.append(msg)
+                log.warning(msg)
+
+        candidate_video_url = video_url or (store_evidence.video_url if store_evidence else None)
+        if candidate_video_url:
+            try:
+                video_evidence = _collect_video_evidence(
+                    video_url=candidate_video_url,
+                    project_dir=workdir,
+                    raw_project_dir=raw_project_dir,
+                )
+            except Exception as exc:  # pragma: no cover - external tools / network vary
+                msg = f"视频关键帧抽取失败: {type(exc).__name__}: {exc}"
+                warnings.append(msg)
+                log.warning(msg)
 
     candidate_video_url = video_url or (store_evidence.video_url if store_evidence else None)
-    if candidate_video_url:
-        try:
-            video_evidence = _collect_video_evidence(
-                video_url=candidate_video_url,
-                project_dir=workdir,
-                raw_project_dir=raw_project_dir,
-            )
-        except Exception as exc:  # pragma: no cover - external tools / network vary
-            msg = f"视频关键帧抽取失败: {type(exc).__name__}: {exc}"
-            warnings.append(msg)
-            log.warning(msg)
 
     enriched_notes = compose_enriched_notes(
         notes=notes,
@@ -263,6 +602,13 @@ def compose_enriched_notes(
         blocks.append(base)
 
     if store is not None:
+        store_desc_values = list(
+            dict.fromkeys(
+                text.strip()
+                for text in (store.raw_metadata.get("descriptions") or {}).values()
+                if str(text).strip()
+            )
+        )[:4]
         blocks.append(
             "\n".join(
                 [
@@ -277,6 +623,7 @@ def compose_enriched_notes(
                     f"- 安装/评分量: {store.installs or '(未识别)'}",
                     f"- 上线信息: {store.release_info or '(未识别)'}",
                     f"- 已抓取截图: {len(store.screenshot_paths)} 张",
+                    *([f"- 画面描述样例: {'；'.join(store_desc_values)}"] if store_desc_values else []),
                     "- 商店描述摘要:",
                     _trim_text(store.description, MAX_DESCRIPTION_CHARS) or "(无)",
                 ]
@@ -285,6 +632,13 @@ def compose_enriched_notes(
 
     if video is not None:
         frame_labels = ", ".join(_frame_labels(video.frame_paths)) or "(无)"
+        scene_descs = list(
+            dict.fromkeys(
+                text.strip()
+                for text in (video.raw_metadata.get("scene_descriptions") or {}).values()
+                if str(text).strip()
+            )
+        )[:6]
         blocks.append(
             "\n".join(
                 [
@@ -296,6 +650,7 @@ def compose_enriched_notes(
                     f"- 时长: {_format_duration(video.duration_seconds)}",
                     f"- 已抽取关键帧: {len(video.frame_paths)} 张",
                     f"- 关键帧编号: {frame_labels}",
+                    *([f"- 关键帧描述样例: {'；'.join(scene_descs)}"] if scene_descs else []),
                     "- 视频描述摘要:",
                     _trim_text(video.description, MAX_DESCRIPTION_CHARS) or "(无)",
                 ]
@@ -853,14 +1208,16 @@ def _build_visual_catalog(store: StoreEvidence | None) -> list[dict[str, Any]]:
     if store is None:
         return []
     items: list[dict[str, Any]] = []
+    desc_map = store.raw_metadata.get("descriptions") or {}
     for idx, rel_path in enumerate(store.screenshot_paths, start=1):
+        desc = str(desc_map.get(rel_path.replace("\\", "/")) or "").strip()
         items.append(
             {
                 "code": f"商店图 {idx}",
                 "path": rel_path,
                 "category": f"{store.source} 商店截图",
                 "label": f"{store.source} 商店第 {idx} 张",
-                "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。",
+                "desc": desc or "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。",
             }
         )
     return items
@@ -870,13 +1227,15 @@ def _build_video_scenes(video: VideoEvidence | None) -> list[dict[str, Any]]:
     if video is None:
         return []
     scenes: list[dict[str, Any]] = []
+    desc_map = video.raw_metadata.get("scene_descriptions") or {}
     for rel_path in video.frame_paths:
         scene_name = Path(rel_path).stem
         secs = _scene_seconds(scene_name, video.frame_interval_seconds)
+        desc = str(desc_map.get(scene_name) or "").strip()
         scenes.append(
             {
                 "frame": f"{scene_name} ({_format_duration(secs)})",
-                "content": "自动抽取关键帧，建议复核开场体验、核心循环表达和画面素材一致性。",
+                "content": desc or "自动抽取关键帧，建议复核开场体验、核心循环表达和画面素材一致性。",
                 "dims_affected": CORE_DIMS_VIDEO,
             }
         )
