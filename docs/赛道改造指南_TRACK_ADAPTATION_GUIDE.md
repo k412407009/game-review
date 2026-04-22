@@ -59,7 +59,7 @@
   - `CORE_DIMS_STORE`
   - `CORE_DIMS_VIDEO`
   - 商店页 / 视频证据如何转成评审上下文
-- [../../ppt-master/skills/ppt-master/scripts/game_assets/fetch_game_assets.py](../../ppt-master/skills/ppt-master/scripts/game_assets/fetch_game_assets.py)
+- [../../game-asset-collector/game_asset_collector/fetch_game_assets.py](../../game-asset-collector/game_asset_collector/fetch_game_assets.py)
   - `LABEL_CATEGORIES`
   - `SCENE_QUOTA`
   - 视觉模型分类 prompt
@@ -121,7 +121,7 @@
 
 ### 4. 素材证据层
 
-`rich_context.py` 和 `fetch_game_assets.py` 存的是“系统默认认为哪些画面重要”。
+`rich_context.py` 和共享 `fetch_game_assets.py` 存的是“系统默认认为哪些画面重要”。
 
 当前偏轻量 SLG / 模拟经营的地方主要有两类：
 

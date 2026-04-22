@@ -6,8 +6,8 @@
   3. 产出可喂给 LLM 的结构化上下文, 同时补齐 review.json 的 visual/video 字段
 
 设计取向:
-  - 本地优先桥接到同级 `ppt-master` 的 `fetch_game_assets.py`, 让网站链路与 Skill 链路共用同一套抓取/抽帧/标注逻辑
-  - 如果找不到 `ppt-master` 或桥接失败, 再回退到 game-review 内置 collector, 保持网站可独立运行
+  - 本地优先桥接到同级 `game-asset-collector` 的共享 `fetch_game_assets.py`, 让网站链路与 Skill 链路共用同一套抓取/抽帧/标注逻辑
+  - 如果找不到共享采集器, 再回退到 `ppt-master` wrapper, 最后才回退到 game-review 内置 collector
   - 证据文件全部落到 `<workdir>/raw_assets/<game_id>/...`, 直接兼容现有 CLI / 视觉索引 Sheet
   - 缺依赖或上游失败时降级为 warning, 不打断整条流水线
 """
@@ -73,7 +73,8 @@ APPSTORE_GENERIC_TOKENS = {
     "mobile", "of", "online", "quest", "rpg", "sim", "simulator", "story",
     "survival", "the", "tycoon", "war", "world",
 }
-PPT_MASTER_FETCH_ENV = "PPT_MASTER_FETCH_SCRIPT"
+GAME_ASSET_COLLECTOR_FETCH_ENV = "GAME_ASSET_COLLECTOR_SCRIPT"
+LEGACY_PPT_MASTER_FETCH_ENV = "PPT_MASTER_FETCH_SCRIPT"
 
 
 @dataclass(slots=True)
@@ -181,15 +182,23 @@ def _select_appstore_candidate(game_name: str, results: list[dict[str, Any]]) ->
     return best_app, f"matched by title score={best_score:.2f}, similarity={best_similarity:.2f}"
 
 
-def _find_ppt_master_fetch_script() -> Path | None:
-    override = os.environ.get(PPT_MASTER_FETCH_ENV, "").strip()
-    if override:
-        path = Path(override).expanduser().resolve()
-        return path if path.exists() else None
+def _find_shared_fetch_script() -> Path | None:
+    for env_name in (GAME_ASSET_COLLECTOR_FETCH_ENV, LEGACY_PPT_MASTER_FETCH_ENV):
+        override = os.environ.get(env_name, "").strip()
+        if override:
+            path = Path(override).expanduser().resolve()
+            if path.exists():
+                return path
 
     git_root = Path(__file__).resolve().parents[4]
-    candidate = git_root / "ppt-master" / "skills" / "ppt-master" / "scripts" / "game_assets" / "fetch_game_assets.py"
-    return candidate if candidate.exists() else None
+    candidates = [
+        git_root / "game-asset-collector" / "scripts" / "fetch_game_assets.py",
+        git_root / "ppt-master" / "skills" / "ppt-master" / "scripts" / "game_assets" / "fetch_game_assets.py",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def _ppt_master_dir_name(game_name: str) -> str:
@@ -406,7 +415,7 @@ def _build_video_evidence_from_ppt_master(
     )
 
 
-def _collect_with_ppt_master_fetcher(
+def _collect_with_shared_fetcher(
     *,
     game_id: str,
     game_name: str,
@@ -414,7 +423,7 @@ def _collect_with_ppt_master_fetcher(
     video_url: str | None,
     project_dir: Path,
 ) -> tuple[StoreEvidence | None, VideoEvidence | None, list[str]] | None:
-    fetch_script = _find_ppt_master_fetch_script()
+    fetch_script = _find_shared_fetch_script()
     if fetch_script is None:
         return None
 
@@ -455,12 +464,12 @@ def _collect_with_ppt_master_fetcher(
             timeout=600,
         )
     except Exception as exc:
-        log.warning("ppt-master fetch bridge failed before execution: %s", exc)
+        log.warning("shared fetch bridge failed before execution: %s", exc)
         return None
 
     if proc.returncode != 0:
         tail = " | ".join(line.strip() for line in (proc.stderr or proc.stdout).splitlines()[-4:] if line.strip())
-        log.warning("ppt-master fetch bridge exited %s: %s", proc.returncode, tail)
+        log.warning("shared fetch bridge exited %s: %s", proc.returncode, tail)
         return None
 
     temp_dir = raw_root / _ppt_master_dir_name(game_name)
@@ -491,9 +500,9 @@ def _collect_with_ppt_master_fetcher(
 
     warnings: list[str] = []
     if store is not None or video is not None:
-        warnings.append("素材采集优先使用 ppt-master 主采集器，已与 Skill 流保持同一套逻辑。")
+        warnings.append("素材采集优先使用共享主采集器 game-asset-collector，已与 Skill 流保持同一套逻辑。")
     elif store_url or video_url:
-        warnings.append("ppt-master 主采集器未产出素材，已回退到 game-review 内置采集器。")
+        warnings.append("共享主采集器未产出素材，已回退到 game-review 内置采集器。")
         return None
 
     # Keep description index available for later compose/build helpers.
@@ -521,7 +530,7 @@ def fetch_asset_context_bundle(
     store_evidence: StoreEvidence | None = None
     video_evidence: VideoEvidence | None = None
 
-    bridge = _collect_with_ppt_master_fetcher(
+    bridge = _collect_with_shared_fetcher(
         game_id=game_id,
         game_name=game_name,
         store_url=store_url,

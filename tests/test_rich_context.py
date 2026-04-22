@@ -9,7 +9,7 @@ from api import rich_context
 def test_fetch_asset_context_bundle_composes_notes_and_review_fields(
     tmp_path: Path, monkeypatch
 ) -> None:
-    monkeypatch.setattr(rich_context, "_collect_with_ppt_master_fetcher", lambda **_: None)
+    monkeypatch.setattr(rich_context, "_collect_with_shared_fetcher", lambda **_: None)
 
     def fake_store(**_: object) -> rich_context.StoreEvidence:
         return rich_context.StoreEvidence(
@@ -84,7 +84,7 @@ def test_fetch_asset_context_bundle_composes_notes_and_review_fields(
 def test_fetch_asset_context_bundle_collects_warnings_without_failing(
     tmp_path: Path, monkeypatch
 ) -> None:
-    monkeypatch.setattr(rich_context, "_collect_with_ppt_master_fetcher", lambda **_: None)
+    monkeypatch.setattr(rich_context, "_collect_with_shared_fetcher", lambda **_: None)
 
     def broken_store(**_: object):
         raise RuntimeError("store failed")
@@ -131,7 +131,7 @@ def test_select_appstore_candidate_accepts_clear_match() -> None:
     assert "matched by title" in reason
 
 
-def test_fetch_asset_context_bundle_prefers_ppt_master_bridge(
+def test_fetch_asset_context_bundle_prefers_shared_bridge(
     tmp_path: Path, monkeypatch
 ) -> None:
     store = rich_context.StoreEvidence(
@@ -170,7 +170,7 @@ def test_fetch_asset_context_bundle_prefers_ppt_master_bridge(
     def fail_video(**_: object):
         raise AssertionError("legacy video collector should not run")
 
-    monkeypatch.setattr(rich_context, "_collect_with_ppt_master_fetcher", fake_bridge)
+    monkeypatch.setattr(rich_context, "_collect_with_shared_fetcher", fake_bridge)
     monkeypatch.setattr(rich_context, "_collect_store_evidence", fail_store)
     monkeypatch.setattr(rich_context, "_collect_video_evidence", fail_video)
 

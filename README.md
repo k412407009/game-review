@@ -8,7 +8,7 @@
 
 - **ppt-master 的本职是 "生成 PPT"**, review 是它的收尾步骤, 耦合进主 skill 后, 外部游戏评审 (不生成 PPT 的场景) 变得难用
 - 本 skill 支持 **两种输入源** (立项 PPT / 外部游戏), 未来扩展到 CLI / Web 服务更干净
-- Web/API 侧的素材抓取现在**优先复用同级 `ppt-master` 的 `fetch_game_assets.py` 逻辑**，保证本地网站链路与 Skill 链路的抓取 / 抽帧 / 标注规则一致；找不到 `ppt-master` 时再回退到自身内置 collector
+- Web/API 侧的素材抓取现在**优先复用同级 `game-asset-collector` 的共享 `fetch_game_assets.py` 逻辑**，保证本地网站链路与 Skill 链路的抓取 / 抽帧 / 标注规则一致；找不到共享模块时，再回退到 `ppt-master` wrapper，最后才回退到自身内置 collector
 - 详见 `docs/roadmap.md`
 
 ## 快速开始
@@ -95,7 +95,7 @@ Pipeline 自动跑: 解压素材 / 自动抓商店页与关键帧 → Compass AI
 | 模式 | 典型场景 | 输入 | 推荐 flag |
 | --- | --- | --- | --- |
 | `internal-ppt` (默认) | 内部立项评审, 已经做完 PPT | 自己写的 review.json | 无 |
-| `external-game` | 外部上线游戏 / 竞品分析 / 投资决策 | ppt-master 的 `fetch_game_assets` 产出 + 自己写的 review.json | `--with-visuals` |
+| `external-game` | 外部上线游戏 / 竞品分析 / 投资决策 | `game-asset-collector` 的 `fetch_game_assets` 产出 + 自己写的 review.json | `--with-visuals` |
 
 ## 目录结构
 
@@ -177,4 +177,4 @@ Word / Excel / Markdown  ← 给非技术读者看的标准产出
 
 ## License
 
-MIT (本 skill 及其 scripts). 外部素材收集工具 (ppt-master 的 fetch_game_assets) 产出的视频帧 / 截图的版权归原游戏发行商所有, 本 skill 只生产 **评论性分析报告**, 建议遵循所在司法管辖区的 "合理使用 / fair use" 边界。
+MIT (本 skill 及其 scripts). 外部素材收集工具 (`game-asset-collector` / `ppt-master` wrapper) 产出的视频帧 / 截图的版权归原游戏发行商所有, 本 skill 只生产 **评论性分析报告**, 建议遵循所在司法管辖区的 "合理使用 / fair use" 边界。

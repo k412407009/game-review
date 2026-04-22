@@ -22,7 +22,7 @@ description: >
 - 根据 JSON 生成规范化的 3 件套 (可选 4 件套) 评审产出
 
 **这个 skill 不做什么**:
-- 不负责 **收集素材** (→ 由 `ppt-master/scripts/game_assets/fetch_game_assets.py` 负责)
+- 不负责 **收集素材** (→ 由 `game-asset-collector/scripts/fetch_game_assets.py` 负责，`ppt-master` 只保留兼容 wrapper)
 - 不负责 **生成 PPT** (→ 由 `ppt-master` 负责)
 - 不负责 **打分本身** (评委角色由 agent 扮演, 写进 JSON 后才由本 skill 落地)
 
@@ -120,7 +120,7 @@ game-review review <project_dir>
 ### 外部游戏评审 (含视觉索引)
 
 ```bash
-# 1. 用 ppt-master 的 fetch_game_assets 收集商店/视频素材
+# 1. 用 game-asset-collector 的 fetch_game_assets 收集商店/视频素材
 # 2. 用 agent 填 review.json (含 video_evidence / visual_catalog)
 # 3. 生成 4 件套
 game-review review <project_dir> --mode external-game --with-visuals
