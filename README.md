@@ -4,6 +4,22 @@
 >
 > 以 5 位评委 (制作人 / 战略-题材 / 战略-玩法 / 运营-LTV / 运营-投放) × 7 维度 (题材 / 核心循环 / 时间节点 / 阶段过渡 / 商业化 / 风险合规 / 美术) 的结构, 把游戏评审变成可复现的结构化产出 (Word + Excel + Markdown).
 
+## 在三仓架构里的位置
+
+完整闭环推荐使用 3 个同级仓库：
+
+- `ppt-master`
+- `game-asset-collector`
+- `game-review`
+
+角色分工：
+
+- `ppt-master`：主入口、PPT 工作流
+- `game-asset-collector`：共享素材抓取
+- `game-review`：结构化评审输出
+
+总入口说明见 `../ppt-master/docs/三仓协同架构_THREE_REPO_STACK.md`。
+
 ## 为什么拆出来
 
 - **ppt-master 的本职是 "生成 PPT"**, review 是它的收尾步骤, 耦合进主 skill 后, 外部游戏评审 (不生成 PPT 的场景) 变得难用
