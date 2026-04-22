@@ -1,6 +1,6 @@
 # game-review
 
-> 独立的 **"游戏评审委员会"** skill, 从 [ppt-master](https://github.com/...) 剥离 (2026-04-21)。
+> 独立的 **"游戏评审委员会"** skill, 从 [game-ppt-master](https://github.com/k412407009/game-ppt-master) 剥离 (2026-04-21)。
 >
 > 以 5 位评委 (制作人 / 战略-题材 / 战略-玩法 / 运营-LTV / 运营-投放) × 7 维度 (题材 / 核心循环 / 时间节点 / 阶段过渡 / 商业化 / 风险合规 / 美术) 的结构, 把游戏评审变成可复现的结构化产出 (Word + Excel + Markdown).
 
@@ -8,23 +8,24 @@
 
 完整闭环推荐使用 3 个同级仓库：
 
-- `ppt-master`
+- `game-ppt-master`
 - `game-asset-collector`
 - `game-review`
 
 角色分工：
 
-- `ppt-master`：主入口、PPT 工作流
+- `game-ppt-master`：主入口、PPT 工作流
 - `game-asset-collector`：共享素材抓取
 - `game-review`：结构化评审输出
 
-总入口说明见 `../ppt-master/docs/三仓协同架构_THREE_REPO_STACK.md`。
+总入口说明见 `../game-ppt-master/docs/三仓协同架构_THREE_REPO_STACK.md`
+（兼容旧本地目录 `../ppt-master/docs/三仓协同架构_THREE_REPO_STACK.md`）。
 
 ## 为什么拆出来
 
-- **ppt-master 的本职是 "生成 PPT"**, review 是它的收尾步骤, 耦合进主 skill 后, 外部游戏评审 (不生成 PPT 的场景) 变得难用
+- **game-ppt-master 的本职是 "生成 PPT"**, review 是它的收尾步骤, 耦合进主 skill 后, 外部游戏评审 (不生成 PPT 的场景) 变得难用
 - 本 skill 支持 **两种输入源** (立项 PPT / 外部游戏), 未来扩展到 CLI / Web 服务更干净
-- Web/API 侧的素材抓取现在**优先复用同级 `game-asset-collector` 的共享 `fetch_game_assets.py` 逻辑**，保证本地网站链路与 Skill 链路的抓取 / 抽帧 / 标注规则一致；找不到共享模块时，再回退到 `ppt-master` wrapper，最后才回退到自身内置 collector
+- Web/API 侧的素材抓取现在**优先复用同级 `game-asset-collector` 的共享 `fetch_game_assets.py` 逻辑**，保证本地网站链路与 Skill 链路的抓取 / 抽帧 / 标注规则一致；找不到共享模块时，再回退到 `game-ppt-master` / `ppt-master` wrapper，最后才回退到自身内置 collector
 - 详见 `docs/roadmap.md`
 
 ## 快速开始
@@ -174,8 +175,8 @@ Word / Excel / Markdown  ← 给非技术读者看的标准产出
 
 ```
 [场景 A] 立项 PPT 评审:
-  ppt-master (Step 1-7 生成 PPT)
-    → ppt-master (Step 8 评委讨论, 填 review.json)
+  game-ppt-master (Step 1-7 生成 PPT)
+    → game-ppt-master (Step 8 评委讨论, 填 review.json)
     → game-review (本 skill, 生成三件套)
 
 [场景 B] 外部游戏评审:
@@ -193,4 +194,4 @@ Word / Excel / Markdown  ← 给非技术读者看的标准产出
 
 ## License
 
-MIT (本 skill 及其 scripts). 外部素材收集工具 (`game-asset-collector` / `ppt-master` wrapper) 产出的视频帧 / 截图的版权归原游戏发行商所有, 本 skill 只生产 **评论性分析报告**, 建议遵循所在司法管辖区的 "合理使用 / fair use" 边界。
+MIT (本 skill 及其 scripts). 外部素材收集工具 (`game-asset-collector` / `game-ppt-master` wrapper / `ppt-master` legacy wrapper) 产出的视频帧 / 截图的版权归原游戏发行商所有, 本 skill 只生产 **评论性分析报告**, 建议遵循所在司法管辖区的 "合理使用 / fair use" 边界。

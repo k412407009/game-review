@@ -77,7 +77,8 @@ QUEUED → FETCHING → SCORING → GENERATING → PACKAGING → DONE
 > 本地如果同级存在 `../game-asset-collector/scripts/fetch_game_assets.py`,
 > API 的 FETCH 阶段会优先调用这份共享采集器做商店抓取 / 视频抽帧 / labels / descriptions 生成，
 > 这样网站链路和 Skill 链路使用的是同一套采集逻辑。
-> 找不到共享采集器时，会先退回 `../ppt-master/.../fetch_game_assets.py` wrapper；
+> 找不到共享采集器时，会先退回 `../game-ppt-master/.../fetch_game_assets.py` wrapper
+>（兼容旧目录名 `../ppt-master/...`）；
 > 两者都不可用时，才回退到 `api/rich_context.py` 自带的轻量 collector。
 
 ## 存储布局

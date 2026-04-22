@@ -7,7 +7,7 @@
 
 设计取向:
   - 本地优先桥接到同级 `game-asset-collector` 的共享 `fetch_game_assets.py`, 让网站链路与 Skill 链路共用同一套抓取/抽帧/标注逻辑
-  - 如果找不到共享采集器, 再回退到 `ppt-master` wrapper, 最后才回退到 game-review 内置 collector
+  - 如果找不到共享采集器, 再回退到 `game-ppt-master` / `ppt-master` wrapper, 最后才回退到 game-review 内置 collector
   - 证据文件全部落到 `<workdir>/raw_assets/<game_id>/...`, 直接兼容现有 CLI / 视觉索引 Sheet
   - 缺依赖或上游失败时降级为 warning, 不打断整条流水线
 """
@@ -193,6 +193,7 @@ def _find_shared_fetch_script() -> Path | None:
     git_root = Path(__file__).resolve().parents[4]
     candidates = [
         git_root / "game-asset-collector" / "scripts" / "fetch_game_assets.py",
+        git_root / "game-ppt-master" / "skills" / "ppt-master" / "scripts" / "game_assets" / "fetch_game_assets.py",
         git_root / "ppt-master" / "skills" / "ppt-master" / "scripts" / "game_assets" / "fetch_game_assets.py",
     ]
     for candidate in candidates:

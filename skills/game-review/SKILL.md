@@ -11,7 +11,7 @@ description: >
 
 # Game Review Skill
 
-> 独立的 "游戏评审委员会" skill, 从 ppt-master 剥离 (2026-04-21)。
+> 独立的 "游戏评审委员会" skill, 从 game-ppt-master 剥离 (2026-04-21)。
 > 输入: 一份结构化的 `<project>_review.json` (评委分数 / 问题清单 / 主观答复)。
 > 输出: Word 完整报告 + Excel 3-4 sheet + Markdown 主观最优解。
 
@@ -22,15 +22,15 @@ description: >
 - 根据 JSON 生成规范化的 3 件套 (可选 4 件套) 评审产出
 
 **这个 skill 不做什么**:
-- 不负责 **收集素材** (→ 由 `game-asset-collector/scripts/fetch_game_assets.py` 负责，`ppt-master` 只保留兼容 wrapper)
-- 不负责 **生成 PPT** (→ 由 `ppt-master` 负责)
+- 不负责 **收集素材** (→ 由 `game-asset-collector/scripts/fetch_game_assets.py` 负责，`game-ppt-master` / `ppt-master` 只保留兼容 wrapper)
+- 不负责 **生成 PPT** (→ 由 `game-ppt-master` 负责)
 - 不负责 **打分本身** (评委角色由 agent 扮演, 写进 JSON 后才由本 skill 落地)
 
 ## 两种模式
 
 | 模式 | `--mode` | 数据来源 | 典型场景 |
 | --- | --- | --- | --- |
-| 立项 PPT 评审 | `internal-ppt` (默认) | ppt-master 产出 PPT + 策划文档 | 内部立项 8 Confirmation 后的第 2 次 Review |
+| 立项 PPT 评审 | `internal-ppt` (默认) | game-ppt-master 产出 PPT + 策划文档 | 内部立项 8 Confirmation 后的第 2 次 Review |
 | 外部游戏评审 | `external-game` | 外部游戏商店 / gameplay 视频 / 投放素材 | CP 研究 / 竞品分析 / 投资决策 |
 
 两种模式的打分框架一致 (7 维度 D1-D7), 输出格式一致。差异在于:

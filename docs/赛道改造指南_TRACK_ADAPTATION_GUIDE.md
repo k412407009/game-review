@@ -73,13 +73,13 @@
 
 这些文件也有同样的维度定义，但不是未来改造的主入口：
 
-- [../../ppt-master/skills/ppt-master/references/review-board.md](../../ppt-master/skills/ppt-master/references/review-board.md)
+- [../../game-ppt-master/skills/ppt-master/references/review-board.md](../../game-ppt-master/skills/ppt-master/references/review-board.md)
   - 这是 `game-review` charter 的历史副本
-- [../../ppt-master/skills/ppt-master/scripts/review/generate_review.py](../../ppt-master/skills/ppt-master/scripts/review/generate_review.py)
-- [../../ppt-master/skills/ppt-master/scripts/review/build_summary.py](../../ppt-master/skills/ppt-master/scripts/review/build_summary.py)
+- [../../game-ppt-master/skills/ppt-master/scripts/review/generate_review.py](../../game-ppt-master/skills/ppt-master/scripts/review/generate_review.py)
+- [../../game-ppt-master/skills/ppt-master/scripts/review/build_summary.py](../../game-ppt-master/skills/ppt-master/scripts/review/build_summary.py)
 
 如果你已经决定以后统一走 `game-review` repo，这几处可以只做兼容同步；
-如果你还要继续支持 `ppt-master` 内部 Step 8 老路径，这几处也得一起改。
+如果你还要继续支持 `game-ppt-master` 的内部 Step 8 老路径（其内部目录仍叫 `skills/ppt-master/...`），这几处也得一起改。
 
 ---
 

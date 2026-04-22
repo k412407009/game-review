@@ -6,7 +6,7 @@
   3. 直接在服务端抓正文, 产出适合喂给 Compass 的结构化文本
 
 实现策略:
-  - 优先复用 ppt-master 里验证过的思路: curl_cffi 伪装 Chrome TLS 指纹
+  - 优先复用 game-ppt-master 里验证过的思路: curl_cffi 伪装 Chrome TLS 指纹
   - 微信文章走定向解析 (#activity-name / #js_name / #publish_time / #js_content)
   - 其他网页走通用正文提取
 """
