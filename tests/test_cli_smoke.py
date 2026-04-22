@@ -27,6 +27,7 @@ def test_module_runnable_as_script():
     assert "review" in r.stdout
     assert "summary" in r.stdout
     assert "visuals" in r.stdout
+    assert "doctor" in r.stdout
 
 
 def test_version_subcommand():
@@ -41,7 +42,7 @@ def test_version_flag():
     assert "game-review" in r.stdout
 
 
-@pytest.mark.parametrize("sub", ["review", "summary", "visuals"])
+@pytest.mark.parametrize("sub", ["review", "summary", "visuals", "doctor"])
 def test_subcommand_help(sub: str):
     r = _run(sub, "--help")
     assert r.returncode == 0, r.stderr
@@ -63,6 +64,33 @@ def test_review_invalid_mode_rejected():
 def test_review_nonexistent_dir_fails_gracefully():
     r = _run("review", "/tmp/game-review-does-not-exist-xyz")
     assert r.returncode != 0
+
+
+def test_doctor_nonexistent_dir_fails_gracefully():
+    r = _run("doctor", "/tmp/game-review-does-not-exist-xyz")
+    assert r.returncode != 0
+
+
+def test_doctor_minimal_project_ok(tmp_path):
+    project_dir = tmp_path / "demo-project"
+    review_dir = project_dir / "review"
+    review_dir.mkdir(parents=True)
+    payload = {
+        "project": "demo-project",
+        "verdict": "conditional_pass",
+        "scores": {"P": {"D1": 3}},
+        "issues": [],
+        "reviewers": [{"id": "P", "name": "制作人"}],
+    }
+    (review_dir / "demo-project_review.json").write_text(
+        __import__("json").dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    r = _run("doctor", str(project_dir))
+    assert r.returncode == 0, r.stderr
+    assert "review.json" in r.stdout
+    assert "下一步建议" in r.stdout
 
 
 def test_cli_module_importable():

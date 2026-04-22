@@ -51,6 +51,9 @@ game-review review <your_project>
 # 4'. 外部游戏评审 (+ 视觉索引 Sheet)
 game-review review <your_project> --mode external-game --with-visuals
 
+# 4''. 正式生成前先体检项目目录
+game-review doctor <your_project>
+
 # 其他子命令
 game-review summary <projects_root>           # 跨项目汇总
 game-review visuals <your_project>            # 只追加视觉索引到已有 xlsx
@@ -113,6 +116,22 @@ Pipeline 自动跑: 解压素材 / 自动抓商店页与关键帧 → Compass AI
 | --- | --- | --- | --- |
 | `internal-ppt` (默认) | 内部立项评审, 已经做完 PPT | 自己写的 review.json | 无 |
 | `external-game` | 外部上线游戏 / 竞品分析 / 投资决策 | `game-asset-collector` 的 `fetch_game_assets` 产出 + 自己写的 review.json | `--with-visuals` |
+
+## 先跑 `doctor`
+
+如果是第一次接手项目，建议先跑：
+
+```bash
+game-review doctor <project_dir>
+```
+
+它会检查：
+
+- `review/` 目录是否存在
+- `*_review.json` 是否存在且可解析
+- `raw_assets/` 是否齐全
+- `visual_catalog.store` / `video_evidence` 是否为空
+- 已有 `docx/xlsx/md` 产物数量
 
 ## 目录结构
 
