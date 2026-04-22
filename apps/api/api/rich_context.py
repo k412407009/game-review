@@ -1210,7 +1210,16 @@ def _build_visual_catalog(store: StoreEvidence | None) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     desc_map = store.raw_metadata.get("descriptions") or {}
     for idx, rel_path in enumerate(store.screenshot_paths, start=1):
-        desc = str(desc_map.get(rel_path.replace("\\", "/")) or "").strip()
+        rel_key = rel_path.replace("\\", "/")
+        desc = str(desc_map.get(rel_key) or "").strip()
+        if not desc:
+            rel_suffix = "/".join(rel_key.split("/")[-4:])
+            for key, value in desc_map.items():
+                norm_key = str(key).replace("\\", "/")
+                if norm_key == rel_suffix or rel_key.endswith(norm_key):
+                    desc = str(value or "").strip()
+                    if desc:
+                        break
         items.append(
             {
                 "code": f"商店图 {idx}",
