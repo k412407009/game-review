@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 
@@ -28,6 +29,7 @@ def test_module_runnable_as_script():
     assert "summary" in r.stdout
     assert "visuals" in r.stdout
     assert "doctor" in r.stdout
+    assert "init-project" in r.stdout
 
 
 def test_version_subcommand():
@@ -42,7 +44,7 @@ def test_version_flag():
     assert "game-review" in r.stdout
 
 
-@pytest.mark.parametrize("sub", ["review", "summary", "visuals", "doctor"])
+@pytest.mark.parametrize("sub", ["review", "summary", "visuals", "doctor", "init-project"])
 def test_subcommand_help(sub: str):
     r = _run(sub, "--help")
     assert r.returncode == 0, r.stderr
@@ -82,15 +84,25 @@ def test_doctor_minimal_project_ok(tmp_path):
         "issues": [],
         "reviewers": [{"id": "P", "name": "制作人"}],
     }
-    (review_dir / "demo-project_review.json").write_text(
-        __import__("json").dumps(payload, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    (review_dir / "demo-project_review.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
     r = _run("doctor", str(project_dir))
     assert r.returncode == 0, r.stderr
     assert "review.json" in r.stdout
     assert "下一步建议" in r.stdout
+
+
+def test_init_project_creates_review_skeleton(tmp_path):
+    project_dir = tmp_path / "new-review-project"
+    r = _run("init-project", str(project_dir), "--mode", "external-game")
+    assert r.returncode == 0, r.stderr
+    json_path = project_dir / "review" / "new-review-project_review.json"
+    assert json_path.exists()
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["project"] == "new-review-project"
+    assert payload["mode"] == "external-game"
+    assert "visual_catalog" in payload
+    assert (project_dir / "raw_assets").exists()
 
 
 def test_cli_module_importable():

@@ -54,6 +54,9 @@ game-review review <your_project> --mode external-game --with-visuals
 # 4''. 正式生成前先体检项目目录
 game-review doctor <your_project>
 
+# 4''' 还没开始时，先生成一份可填写的评审草稿
+game-review init-project <your_project> --mode external-game
+
 # 其他子命令
 game-review summary <projects_root>           # 跨项目汇总
 game-review visuals <your_project>            # 只追加视觉索引到已有 xlsx
@@ -132,6 +135,27 @@ game-review doctor <project_dir>
 - `raw_assets/` 是否齐全
 - `visual_catalog.store` / `video_evidence` 是否为空
 - 已有 `docx/xlsx/md` 产物数量
+
+## `init-project` 是干什么的
+
+如果你现在手里还没有评审起始文件，不想自己手写 `review.json`，就先跑：
+
+```bash
+game-review init-project <project_dir> --mode external-game
+```
+
+跑完之后，你会直接得到一份“评审草稿”：
+
+- 评委名单已经放好
+- 7 个维度的打分位置已经留好
+- 亮点、风险、问题清单的位置已经留好
+- 如果是外部游戏评审，还会顺手建好 `raw_assets/`
+
+它的目标很简单：
+
+- 先把评审项目起一个头
+- 少掉手写起始文件这一步
+- 让你、同事或 AI 可以直接在这份草稿上继续往下写
 
 ## 目录结构
 

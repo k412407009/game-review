@@ -21,6 +21,8 @@ import argparse
 import importlib
 import json
 import sys
+from copy import deepcopy
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +32,46 @@ except Exception:
     pass
 
 from game_review import __version__
+
+
+DIMENSION_IDS = ("D1", "D2", "D3", "D4", "D5", "D6", "D7")
+DEFAULT_REVIEWERS = [
+    {
+        "id": "P",
+        "name": "资深制作人",
+        "years": 15,
+        "background": "研发负责人 / 整体节奏与商业终局把关",
+        "perspective": "立项可行性、整体节奏、商业终局",
+    },
+    {
+        "id": "S1",
+        "name": "战略专家·题材",
+        "years": 12,
+        "background": "题材立项、用户研究、竞品判断",
+        "perspective": "题材匹配度、用户画像、风险合规",
+    },
+    {
+        "id": "S2",
+        "name": "战略专家·玩法",
+        "years": 10,
+        "background": "核心循环、数值边界、长留存设计",
+        "perspective": "核心循环、时间节点、阶段过渡",
+    },
+    {
+        "id": "O1",
+        "name": "运营·用户运营",
+        "years": 6,
+        "background": "留存、付费节点、LTV",
+        "perspective": "留存钩子、付费节点、情感链接",
+    },
+    {
+        "id": "O2",
+        "name": "运营·投放",
+        "years": 8,
+        "background": "买量素材、CPM、转化链路",
+        "perspective": "投放素材兼容度、CPM 承担性、题材变现上限",
+    },
+]
 
 
 def _find_skill_scripts_dir() -> Path:
@@ -62,6 +104,48 @@ if str(_SKILL_SCRIPTS_DIR) not in sys.path:
 def _lazy_import(mod_name: str) -> Any:
     """按需 import skill 脚本, 避免启动 game-review --help 时也触发重依赖加载。"""
     return importlib.import_module(mod_name)
+
+
+def _today() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def _project_slug(name: str) -> str:
+    return (
+        name.strip()
+        .replace(" ", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+        .replace("·", "_")
+    ) or "new_project"
+
+
+def _build_init_payload(project_name: str, mode: str) -> dict[str, Any]:
+    verdict = "market_observed" if mode == "external-game" else "conditional_pass"
+    payload: dict[str, Any] = {
+        "project": project_name,
+        "mode": mode,
+        "verdict": verdict,
+        "weighted_score": 0,
+        "review_date": _today(),
+        "verdict_rationale": "待填写",
+        "next_review": "待定",
+        "reviewers": deepcopy(DEFAULT_REVIEWERS),
+        "scores": {
+            reviewer["id"]: {dim_id: 0 for dim_id in DIMENSION_IDS}
+            for reviewer in DEFAULT_REVIEWERS
+        },
+        "highlights": [],
+        "risks": [],
+        "issues": [],
+    }
+    if mode == "external-game":
+        payload["visual_catalog"] = {"store": []}
+        payload["video_evidence"] = {
+            "sources": [],
+            "frame_analysis": {"key_scenes_human_read": []},
+        }
+    return payload
 
 
 def _find_review_json(project_dir: Path) -> Path | None:
@@ -190,6 +274,51 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if not blockers else 2
 
 
+def _cmd_init_project(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    project_dir.mkdir(parents=True, exist_ok=True)
+    review_dir = project_dir / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+
+    project_name = args.project_name.strip() if args.project_name else project_dir.name
+    json_path = review_dir / f"{_project_slug(project_name)}_review.json"
+    if json_path.exists() and not args.force:
+        print(f"已存在：{json_path}")
+        print("如果你就是要覆盖，追加 `--force`。")
+        return 2
+
+    payload = _build_init_payload(project_name, args.mode)
+    json_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    if args.mode == "external-game":
+        (project_dir / "raw_assets").mkdir(parents=True, exist_ok=True)
+
+    print("== game-review init-project ==")
+    print(f"已创建项目目录：{project_dir}")
+    print(f"已创建评审草稿：{json_path}")
+    print("")
+    print("这个命令帮你先把“评审起始文件”搭好了。")
+    print("你接下来只需要补 4 类内容：")
+    print("- 最终结论：过 / 有条件过 / 不过 / 仅观察")
+    print("- 7 个维度的打分")
+    print("- 亮点和风险")
+    print("- 具体问题清单（issues）")
+    if args.mode == "external-game":
+        print("")
+        print("这是“外部游戏评审”模式，所以我也顺手给你建了 `raw_assets/` 目录。")
+        print("后面把商店图、视频帧这些证据放进去，就能直接做视觉索引。")
+    print("")
+    print("下一步建议：")
+    print(f"- 先检查草稿：game-review doctor {project_dir}")
+    print(f"- 填完内容后生成报告：game-review review {project_dir} --mode {args.mode}")
+    if args.mode == "external-game":
+        print(f"- 如果要带视觉索引：game-review review {project_dir} --mode external-game --with-visuals")
+    return 0
+
+
 # ================= subcommand handlers =================
 
 
@@ -254,6 +383,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "  # 评审前先做项目体检\n"
             "  game-review doctor /path/to/project_dir\n"
+            "\n"
+            "  # 先生成一份可填写的评审草稿\n"
+            "  game-review init-project /path/to/project_dir --mode external-game\n"
         ),
     )
     parser.add_argument("-V", "--version", action="version", version=f"game-review {__version__}")
@@ -305,6 +437,23 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_doctor.add_argument("project_dir", type=Path, help="项目目录")
     p_doctor.set_defaults(func=_cmd_doctor)
+
+    # init-project
+    p_init = sub.add_parser(
+        "init-project",
+        help="先生成一份可填写的评审草稿",
+        description="创建 review 目录和最小 review.json，让你不用手写起始文件。",
+    )
+    p_init.add_argument("project_dir", type=Path, help="项目目录；不存在会自动创建")
+    p_init.add_argument("--project-name", default="", help="评审里显示的项目名；默认取目录名")
+    p_init.add_argument(
+        "--mode",
+        choices=["internal-ppt", "external-game"],
+        default="internal-ppt",
+        help="评审类型；如果是外部已上线游戏，选 external-game",
+    )
+    p_init.add_argument("--force", action="store_true", help="如果同名 review.json 已存在，允许覆盖")
+    p_init.set_defaults(func=_cmd_init_project)
 
     # version
     p_ver = sub.add_parser("version", help="打印版本")
