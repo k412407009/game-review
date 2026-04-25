@@ -1,0 +1,15 @@
+补抓干净素材：仅用于 Last Outbreak 当前 Google Play 公开页与指定 YouTube 视频的外部游戏评审。
+
+[自动抓取商店页证据]
+- 重点服务维度: D1 题材匹配度, D7 美术/素材表达
+- 来源: googleplay
+- 页面: https://play.google.com/store/apps/details?id=com.outbreakcounty.slg&hl=en&gl=us
+- 标题: Last Outbreak
+- 开发者: Victor Isika
+- 品类: Strategy
+- 评分: (未识别)
+- 安装/评分量: 5,000+
+- 上线信息: (未识别)
+- 已抓取截图: 8 张
+- 商店描述摘要:
+As the world collapses under a deadly virus, humanity is on the brink of extinction. You will take command of a survivor camp, build your base, fight off the infected, gather scarce resources, and restore order in a world of ruins. Here, strategy determines survival. Your choices shape the future. Features: • Build and upgrade your survivor base Start from a small outpost and grow it into a fortified stronghold by upgrading buildings, researching technologies, and producing vital resources to hold back endless hordes of infected. • Command unique survivors and form elite squads Recruit survivors with diverse skills, train powerful heroes, and assemble combat teams to battle infected swarms and hostile factions. • Explore and expand across the world map Send scouts into the wasteland to gather supplies, clear infected zones, seize strategic points, and compete for dominance among global survivor factions. • Join alliances and fight together Team up with players from around the world, support each other’s growth, defend against massive infected attacks, and participate in cross‑server battles. • Survival decisions and dynamic events Face unpredictable challenges—resource shortages, external threats, internal conflicts—and make choices that determine the fate of your city. The apocalypse has arrived, but hope still burns. Join Last Outbreak now and forge your survival legend in a dying world.

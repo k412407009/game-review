@@ -1,0 +1,16 @@
+{
+  "game_name": "Last Beacon: Survival",
+  "collected_at": "2026-04-20T23:31:31.902947",
+  "stores": {},
+  "labels": {
+    "total": 98,
+    "distribution": {
+      "store-screenshot": 18,
+      "ui-menu": 66,
+      "loading": 14
+    },
+    "mode": "heuristic",
+    "ai_calls": 0,
+    "total_tokens": 0
+  }
+}

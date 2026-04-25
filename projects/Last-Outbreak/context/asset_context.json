@@ -1,0 +1,132 @@
+{
+  "store": {
+    "source": "googleplay",
+    "page_url": "https://play.google.com/store/apps/details?id=com.outbreakcounty.slg&hl=en&gl=us",
+    "title": "Last Outbreak",
+    "developer": "Victor Isika",
+    "description": "As the world collapses under a deadly virus, humanity is on the brink of extinction. You will take command of a survivor camp, build your base, fight off the infected, gather scarce resources, and restore order in a world of ruins. Here, strategy determines survival. Your choices shape the future. Features: • Build and upgrade your survivor base Start from a small outpost and grow it into a fortified stronghold by upgrading buildings, researching technologies, and producing vital resources to hold back endless hordes of infected. • Command unique survivors and form elite squads Recruit survivors with diverse skills, train powerful heroes, and assemble combat teams to battle infected swarms and hostile factions. • Explore and expand across the world map Send scouts into the wasteland to gather supplies, clear infected zones, seize strategic points, and compete for dominance among global survivor factions. • Join alliances and fight together Team up with players from around the world, support each other’s growth, defend against massive infected attacks, and participate in cross‑server battles. • Survival decisions and dynamic events Face unpredictable challenges—resource shortages, external threats, internal conflicts—and make choices that determine the fate of your city. The apocalypse has arrived, but hope still burns. Join Last Outbreak now and forge your survival legend in a dying world.",
+    "rating": "",
+    "installs": "5,000+",
+    "genre": "Strategy",
+    "release_info": "",
+    "icon_path": "raw_assets/last-outbreak/store/googleplay/icon.png",
+    "screenshot_paths": [
+      "raw_assets/last-outbreak/store/googleplay/screenshot_01.jpg",
+      "raw_assets/last-outbreak/store/googleplay/screenshot_02.jpg",
+      "raw_assets/last-outbreak/store/googleplay/screenshot_03.jpg",
+      "raw_assets/last-outbreak/store/googleplay/screenshot_04.jpg",
+      "raw_assets/last-outbreak/store/googleplay/screenshot_05.jpg",
+      "raw_assets/last-outbreak/store/googleplay/screenshot_06.jpg",
+      "raw_assets/last-outbreak/store/googleplay/screenshot_07.jpg",
+      "raw_assets/last-outbreak/store/googleplay/screenshot_08.jpg"
+    ],
+    "video_url": null,
+    "raw_metadata": {
+      "source": "googleplay",
+      "title": "Last Outbreak",
+      "appId": "com.outbreakcounty.slg",
+      "developer": "Victor Isika",
+      "score": null,
+      "ratings": null,
+      "installs": "5,000+",
+      "genre": "Strategy",
+      "description": "As the world collapses under a deadly virus, humanity is on the brink of extinction. You will take command of a survivor camp, build your base, fight off the infected, gather scarce resources, and restore order in a world of ruins.\r\n\r\nHere, strategy determines survival. Your choices shape the future.\r\n\r\nFeatures:\r\n\r\n• Build and upgrade your survivor base\r\nStart from a small outpost and grow it into a fortified stronghold by upgrading buildings, researching technologies, and producing vital resources to hold back endless hordes of infected.\r\n\r\n• Command unique survivors and form elite squads\r\nRecruit survivors with diverse skills, train powerful heroes, and assemble combat teams to battle infected swarms and hostile factions.\r\n\r\n• Explore and expand across the world map\r\nSend scouts into the wasteland to gather supplies, clear infected zones, seize strategic points, and compete for dominance among global survivor factions.\r\n\r\n• Join alliances and fight together\r\nTeam up with players from around the world, support each other’s growth, defend against massive infected attacks, and participate in cross‑server battles.\r\n\r\n• Survival decisions and dynamic events\r\nFace unpredictable challenges—resource shortages, external threats, internal conflicts—and make choices that determine the fate of your city.\r\n\r\nThe apocalypse has arrived, but hope still burns.\r\nJoin Last Outbreak now and forge your survival legend in a dying world.",
+      "released": null,
+      "video_url": null,
+      "page_url": "https://play.google.com/store/apps/details?id=com.outbreakcounty.slg&hl=en&gl=us",
+      "icon_path": "raw_assets/last-outbreak/store/googleplay/icon.png",
+      "screenshot_paths": [
+        "raw_assets/last-outbreak/store/googleplay/screenshot_01.jpg",
+        "raw_assets/last-outbreak/store/googleplay/screenshot_02.jpg",
+        "raw_assets/last-outbreak/store/googleplay/screenshot_03.jpg",
+        "raw_assets/last-outbreak/store/googleplay/screenshot_04.jpg",
+        "raw_assets/last-outbreak/store/googleplay/screenshot_05.jpg",
+        "raw_assets/last-outbreak/store/googleplay/screenshot_06.jpg",
+        "raw_assets/last-outbreak/store/googleplay/screenshot_07.jpg",
+        "raw_assets/last-outbreak/store/googleplay/screenshot_08.jpg"
+      ]
+    }
+  },
+  "video": null,
+  "warnings": [
+    "视频关键帧抽取失败: RuntimeError: 视频下载失败，且静态 YouTube 缩略图也不可用"
+  ],
+  "review_fields": {
+    "visual_catalog": {
+      "store": [
+        {
+          "code": "商店图 1",
+          "path": "raw_assets/last-outbreak/store/googleplay/screenshot_01.jpg",
+          "category": "googleplay 商店截图",
+          "label": "googleplay 商店第 1 张",
+          "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。"
+        },
+        {
+          "code": "商店图 2",
+          "path": "raw_assets/last-outbreak/store/googleplay/screenshot_02.jpg",
+          "category": "googleplay 商店截图",
+          "label": "googleplay 商店第 2 张",
+          "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。"
+        },
+        {
+          "code": "商店图 3",
+          "path": "raw_assets/last-outbreak/store/googleplay/screenshot_03.jpg",
+          "category": "googleplay 商店截图",
+          "label": "googleplay 商店第 3 张",
+          "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。"
+        },
+        {
+          "code": "商店图 4",
+          "path": "raw_assets/last-outbreak/store/googleplay/screenshot_04.jpg",
+          "category": "googleplay 商店截图",
+          "label": "googleplay 商店第 4 张",
+          "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。"
+        },
+        {
+          "code": "商店图 5",
+          "path": "raw_assets/last-outbreak/store/googleplay/screenshot_05.jpg",
+          "category": "googleplay 商店截图",
+          "label": "googleplay 商店第 5 张",
+          "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。"
+        },
+        {
+          "code": "商店图 6",
+          "path": "raw_assets/last-outbreak/store/googleplay/screenshot_06.jpg",
+          "category": "googleplay 商店截图",
+          "label": "googleplay 商店第 6 张",
+          "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。"
+        },
+        {
+          "code": "商店图 7",
+          "path": "raw_assets/last-outbreak/store/googleplay/screenshot_07.jpg",
+          "category": "googleplay 商店截图",
+          "label": "googleplay 商店第 7 张",
+          "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。"
+        },
+        {
+          "code": "商店图 8",
+          "path": "raw_assets/last-outbreak/store/googleplay/screenshot_08.jpg",
+          "category": "googleplay 商店截图",
+          "label": "googleplay 商店第 8 张",
+          "desc": "自动抓取自商店页，优先用于核对 D1 题材卖点与 D7 素材表达。"
+        }
+      ]
+    },
+    "video_evidence": {
+      "sources": [
+        {
+          "type": "video",
+          "url": "https://www.youtube.com/watch?v=3dQj5PfFdFg&t=4s"
+        },
+        {
+          "type": "store",
+          "url": "https://play.google.com/store/apps/details?id=com.outbreakcounty.slg&hl=en&gl=us"
+        }
+      ],
+      "frame_analysis": {
+        "key_scenes_human_read": []
+      }
+    }
+  },
+  "enriched_notes": "补抓干净素材：仅用于 Last Outbreak 当前 Google Play 公开页与指定 YouTube 视频的外部游戏评审。\n\n[自动抓取商店页证据]\n- 重点服务维度: D1 题材匹配度, D7 美术/素材表达\n- 来源: googleplay\n- 页面: https://play.google.com/store/apps/details?id=com.outbreakcounty.slg&hl=en&gl=us\n- 标题: Last Outbreak\n- 开发者: Victor Isika\n- 品类: Strategy\n- 评分: (未识别)\n- 安装/评分量: 5,000+\n- 上线信息: (未识别)\n- 已抓取截图: 8 张\n- 商店描述摘要:\nAs the world collapses under a deadly virus, humanity is on the brink of extinction. You will take command of a survivor camp, build your base, fight off the infected, gather scarce resources, and restore order in a world of ruins. Here, strategy determines survival. Your choices shape the future. Features: • Build and upgrade your survivor base Start from a small outpost and grow it into a fortified stronghold by upgrading buildings, researching technologies, and producing vital resources to hold back endless hordes of infected. • Command unique survivors and form elite squads Recruit survivors with diverse skills, train powerful heroes, and assemble combat teams to battle infected swarms and hostile factions. • Explore and expand across the world map Send scouts into the wasteland to gather supplies, clear infected zones, seize strategic points, and compete for dominance among global survivor factions. • Join alliances and fight together Team up with players from around the world, support each other’s growth, defend against massive infected attacks, and participate in cross‑server battles. • Survival decisions and dynamic events Face unpredictable challenges—resource shortages, external threats, internal conflicts—and make choices that determine the fate of your city. The apocalypse has arrived, but hope still burns. Join Last Outbreak now and forge your survival legend in a dying world."
+}

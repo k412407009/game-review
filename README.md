@@ -99,19 +99,42 @@ Pipeline 自动跑: 解压素材 / 自动抓商店页与关键帧 → Compass AI
 - `<project>/review/<project>_review.xlsx` — Issues / Scores / (视觉索引) / Action_Items
 - `<project>/review/<project>_subjective_responses.md` — 主观问题最优解
 
-## external-game 的 `raw_assets` 约定
+## external-game 的 `raw_assets` 约定（2026-04-25 重组后）
 
-如果你希望 **以后还能字节级 / 视觉级复现** 同一份外部游戏评审, `raw_assets/` 不能只留
-`metadata.json` 或最终 `xlsx`。最少要保留这几类原始证据:
+**新约定**: 所有素材统一放在 `game-asset-collector/game_assets_library/by_game/<Game>/`，
+评审项目目录里的 `raw_assets/<game_slug>` 是**软链接**，指向素材仓库。
 
-- `<project>/raw_assets/<game>/store/...` — 商店截图原图
-- `<project>/raw_assets/<game>/gameplay/frames/...` — 抽帧原图
-- `<project>/raw_assets/<game>/gameplay/labels.json` — 场景标签
-- `<project>/raw_assets/<game>/gameplay/descriptions.json` — 中文画面描述
-- `<project>/raw_assets/<game>/metadata.json` — 抓取批次元数据
+```
+# 物理素材
+../game-asset-collector/game_assets_library/by_game/Last-Outbreak/
+  store/  gameplay/  metadata.json
 
-如果这些图源被删掉, `game-review --with-visuals` 仍能复现 **文字报告**, 但 Excel 的
-"视觉索引" 会退化成 `(图源缺失)` 占位或只剩部分条目。
+# 评审项目目录
+projects/Last-Outbreak/
+  review/
+  context/
+  notes/
+  raw_assets/last-outbreak -> ../../../../game-asset-collector/.../by_game/Last-Outbreak  ← 软链接
+```
+
+这样做的好处：
+
+- 评审项目目录变小（review docx/xlsx 等只占几 MB），可以方便地 `git add`
+- 同一份素材可以被多个评审项目复用（同一游戏不同版本评审、复盘对比等）
+- 删素材不影响评审结论，删评审不影响素材
+
+`game-review review --with-visuals` 通过软链接读图，**不需要改代码**。
+
+如果你新建评审项目，记得手动建一次软链接：
+
+```bash
+cd projects/<Game>
+mkdir -p raw_assets
+cd raw_assets
+ln -sf ../../../../game-asset-collector/game_assets_library/by_game/<Game> <game_slug>
+```
+
+`<game_slug>` 要跟 `review.json` 里 `path` 字段写的目录名对齐（一般是 `Last-Outbreak` 或 `last-outbreak`，看 collector 输出的命名）。
 
 ## 两种模式
 
@@ -183,8 +206,18 @@ game-review/
       app/jobs/page.tsx             历史记录
       app/jobs/[id]/page.tsx        进度页 + 下载
       lib/api.ts                    API 客户端
+  projects/                         评审项目目录（每个游戏一个）
+    Last-Outbreak/
+      review/                       docx / xlsx / json / md 产出
+      context/                      asset_context.json 等
+      notes/                        参考摘要、关键词包、文献
+      raw_assets/<slug>             软链接 → game-asset-collector/.../by_game/<Game>/
+    Last-Beacon-Survival/
+      review/  notes/  scripts/  raw_assets/  repro_review_2026-04-22/
   docs/
     roadmap.md                      从 skill → CLI → Web SaaS 的渐进路径
+    外部游戏评审MVP反思_EXTERNAL_GAME_REVIEW_MVP_REFLECTION.md
+    评审SaaS路线图_REVIEW_SAAS_ROADMAP.md
   skills/
     game-review/
       SKILL.md                      skill 门面 (给 AI agent 看)
